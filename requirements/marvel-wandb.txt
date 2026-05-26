@@ -1,0 +1,2 @@
+# Optional Weights & Biases integration.
+wandb

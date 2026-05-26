@@ -1,0 +1,8 @@
+# pyproject.toml
+[build-system]
+requires = [
+    "setuptools>=64",    # Editable installs via PEP 660
+    "wheel",             # Standard for building wheels
+    "cmake>=3.26.0",
+]
+build-backend = "setuptools.build_meta"

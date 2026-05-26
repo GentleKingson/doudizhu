@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doudizhu"
+version = "0.1.0"
+description = "Isolated Dou Dizhu training, evaluation, and Kagami search routines from nanogamekits."
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2",
+    "torch",
+    "tqdm",
+    "tyro",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+wandb = ["wandb"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "evaluations*",
+    "kagami*",
+    "marvel*",
+    "yomi*",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "external: marks tests that require optional external baseline checkouts",
+]
