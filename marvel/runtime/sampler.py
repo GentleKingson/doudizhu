@@ -10,6 +10,7 @@ from marvel.model.tensordict import TensorDict
 from marvel.buffer import BufferConfig, FieldSpecLike, TrajectoryBuffer, trajectory_field_specs
 from marvel.env_batch import EnvStepBatch
 from marvel.model import KVCache
+from marvel.runtime.profiling import diagnostic_scope
 from marvel.utils import unwrap_distributed_module
 
 
@@ -100,6 +101,8 @@ class Sampler:
         self.commit_buffer_size = 0
         self.total_env_steps = 0
         self.total_game_steps = 0
+        self.total_completed_games = 0
+        self.profile = False
         self.last_step_rewards: torch.Tensor | None = None
         self.last_step_is_terminal: torch.Tensor | None = None
 
@@ -129,12 +132,14 @@ class Sampler:
                 "Use rollout_step() and read sampler.envs/parsed_envs_step directly in no-commit mode."
             )
         with torch.inference_mode():
-            self.prepare_agent_cache(agent_model = agent_model)
+            with diagnostic_scope(self.profile, "sampler.cache_rebuild"):
+                self.prepare_agent_cache(agent_model = agent_model)
             while self.commit_buffer_size < self.collect_batch_size:
                 self.rollout_step(agent_model = agent_model)
 
-        collect_batch = self.commit_buffer[: self.collect_batch_size].clone()
-        self.consume(self.collect_batch_size)
+        with diagnostic_scope(self.profile, "sampler.collect_clone_consume"):
+            collect_batch = self.commit_buffer[: self.collect_batch_size].clone()
+            self.consume(self.collect_batch_size)
         return collect_batch
 
     def consume(self, batch_size: int) -> None:
@@ -229,6 +234,8 @@ class Sampler:
         if self.agent_kv is None:
             raise RuntimeError("Agent KV cache must be initialized before committing rollouts.")
 
+        self.total_completed_games += num_done
+
         if self.commit_buffer is not None:
             completed = self.rollout_buffer[mask]
             self.commit_buffer[self.commit_buffer_size: self.commit_buffer_size + num_done] = completed
@@ -288,79 +295,88 @@ class Sampler:
             batch_size = [self.rollout_batch_size],
             device = self.device,
         )
-        per_env_output = agent_model(
-            rollout = step_rollout,
-            use_cache = True,
-            past_key_values = self.agent_kv,
-        )
+        with diagnostic_scope(self.profile, "sampler.agent_forward"):
+            per_env_output = agent_model(
+                rollout = step_rollout,
+                use_cache = True,
+                past_key_values = self.agent_kv,
+            )
 
-        avail_probs = per_env_output.avail_probs.squeeze(1).float()
+        with diagnostic_scope(self.profile, "sampler.action_select"):
+            avail_probs = per_env_output.avail_probs.squeeze(1).float()
 
-        # Prior-preserving temperature: softmax(raw_logits / temp + log_prior).
-        # Reconstruct raw logits (up to constant) by subtracting the log-prior,
-        # scale only the learned component by temperature, then re-add the prior.
-        # At temp=1 this reduces to the original probs; as temp→∞ it converges
-        # to the prior distribution (avail_weights / sum) rather than flat uniform.
-        avail_weights_f = self.parsed_envs_step["avail_weights"].float()
-        avail_mask = avail_weights_f > 0
-        log_probs = avail_probs.clamp(min = 1e-9).log()
-        log_prior = avail_weights_f.clamp(min = 1e-9).log()
-        raw_logits = log_probs - log_prior
-        neg_inf = torch.finfo(raw_logits.dtype).min
-        if forced_action_indices is not None:
-            forced = forced_action_indices.to(dtype = torch.long, device = self.device)
-            if tuple(forced.shape) != (self.rollout_batch_size,):
-                raise ValueError(
-                    "forced_action_indices must have shape [rollout_batch_size]: "
-                    f"expected {(self.rollout_batch_size,)}, got {tuple(forced.shape)}."
-                )
-            action_taken = forced
-        elif self._sampling_temperature <= 0.0:
-            action_taken = torch.argmax(raw_logits.masked_fill(~avail_mask, neg_inf), dim = 1)
-        else:
-            scaled_logits = (raw_logits / self._sampling_temperature + log_prior).masked_fill(~avail_mask, neg_inf)
-            sampling_probs = torch.softmax(scaled_logits, dim = 1)
-            action_taken = torch.multinomial(sampling_probs, 1).squeeze(1)
+            # Prior-preserving temperature: softmax(raw_logits / temp + log_prior).
+            # Reconstruct raw logits (up to constant) by subtracting the log-prior,
+            # scale only the learned component by temperature, then re-add the prior.
+            # At temp=1 this reduces to the original probs; as temp→∞ it converges
+            # to the prior distribution (avail_weights / sum) rather than flat uniform.
+            avail_weights_f = self.parsed_envs_step["avail_weights"].float()
+            avail_mask = avail_weights_f > 0
+            log_probs = avail_probs.clamp(min = 1e-9).log()
+            log_prior = avail_weights_f.clamp(min = 1e-9).log()
+            raw_logits = log_probs - log_prior
+            neg_inf = torch.finfo(raw_logits.dtype).min
+            if forced_action_indices is not None:
+                forced = forced_action_indices.to(dtype = torch.long, device = self.device)
+                if tuple(forced.shape) != (self.rollout_batch_size,):
+                    raise ValueError(
+                        "forced_action_indices must have shape [rollout_batch_size]: "
+                        f"expected {(self.rollout_batch_size,)}, got {tuple(forced.shape)}."
+                    )
+                action_taken = forced
+            elif self._sampling_temperature <= 0.0:
+                action_taken = torch.argmax(raw_logits.masked_fill(~avail_mask, neg_inf), dim = 1)
+            else:
+                scaled_logits = (raw_logits / self._sampling_temperature + log_prior).masked_fill(~avail_mask, neg_inf)
+                sampling_probs = torch.softmax(scaled_logits, dim = 1)
+                action_taken = torch.multinomial(sampling_probs, 1).squeeze(1)
 
-        # Chance / environment steps are not agent decisions: sample from the provided
-        # action weights (which represent a probability mass function).
-        player_ids_step = self.parsed_envs_step["player_ids"].to(dtype = torch.long)
-        chance_mask = player_ids_step < 0
-        avail_probs_used = avail_probs
-        if torch.any(chance_mask):
-            chance_weights = self.parsed_envs_step["avail_weights"].float()
-            sampled = torch.multinomial(chance_weights[chance_mask], 1).squeeze(1)
-            action_taken = action_taken.clone()
-            action_taken[chance_mask] = sampled
+            # Chance / environment steps are not agent decisions: sample from the provided
+            # action weights (which represent a probability mass function).
+            player_ids_step = self.parsed_envs_step["player_ids"].to(dtype = torch.long)
+            chance_mask = player_ids_step < 0
+            avail_probs_used = avail_probs
+            if torch.any(chance_mask):
+                chance_weights = self.parsed_envs_step["avail_weights"].float()
+                sampled = torch.multinomial(chance_weights[chance_mask], 1).squeeze(1)
+                action_taken = action_taken.clone()
+                action_taken[chance_mask] = sampled
 
-            # Record the normalized chance distribution (useful for downstream metrics/debugging).
-            norm = chance_weights[chance_mask].sum(dim = 1, keepdim = True).clamp(min = 1e-9)
-            avail_probs_used = avail_probs.clone()
-            avail_probs_used[chance_mask] = chance_weights[chance_mask] / norm
+                # Record the normalized chance distribution (useful for downstream metrics/debugging).
+                norm = chance_weights[chance_mask].sum(dim = 1, keepdim = True).clamp(min = 1e-9)
+                avail_probs_used = avail_probs.clone()
+                avail_probs_used[chance_mask] = chance_weights[chance_mask] / norm
 
-        action_is_commit = self.parsed_envs_step["avail_is_commit"][
-            self._micro_buffer_range,
-            action_taken,
-        ].to(torch.bool)
-        self.total_game_steps += int(action_is_commit.sum().item())
-        action_tokens = self.parsed_envs_step["avail_tokens"][self._micro_buffer_range, action_taken]
-        actions = self.game.actions_from_np(action_tokens.detach().cpu().numpy())
+            action_is_commit = self.parsed_envs_step["avail_is_commit"][
+                self._micro_buffer_range,
+                action_taken,
+            ].to(torch.bool)
+            self.total_game_steps += int(action_is_commit.sum().item())
+
+        with diagnostic_scope(self.profile, "sampler.actions_d2h"):
+            action_tokens = self.parsed_envs_step["avail_tokens"][self._micro_buffer_range, action_taken]
+            actions = self.game.actions_from_np(action_tokens.detach().cpu().numpy())
+
         self.parsed_envs_step.record_agent_outputs(
             avail_probs = avail_probs_used,
             action_taken = action_taken,
         )
 
-        envs_step = self.envs.step(actions)
-        next_parsed_envs_step = EnvStepBatch.from_env_step(envs_step, self.config)
-        outcome = next_parsed_envs_step.outcome
+        with diagnostic_scope(self.profile, "sampler.env_step"):
+            envs_step = self.envs.step(actions)
 
-        step_done_mask = outcome["is_terminal"].to(dtype = torch.bool)
-        self.last_step_rewards = outcome["rewards"].to(dtype = torch.float32, device = self.device).clone()
-        self.last_step_is_terminal = step_done_mask.clone()
-        transition = self.parsed_envs_step.build_transition(outcome)
-        self.rollout_buffer.add_step(self._micro_buffer_range, transition)
-        if bool(step_done_mask.any().item()):
-            self._commit_done(step_done_mask)
+        with diagnostic_scope(self.profile, "sampler.obs_h2d"):
+            next_parsed_envs_step = EnvStepBatch.from_env_step(envs_step, self.config)
+            outcome = next_parsed_envs_step.outcome
+
+        with diagnostic_scope(self.profile, "sampler.buffer_commit"):
+            step_done_mask = outcome["is_terminal"].to(dtype = torch.bool)
+            self.last_step_rewards = outcome["rewards"].to(dtype = torch.float32, device = self.device).clone()
+            self.last_step_is_terminal = step_done_mask.clone()
+            transition = self.parsed_envs_step.build_transition(outcome)
+            self.rollout_buffer.add_step(self._micro_buffer_range, transition)
+            if bool(step_done_mask.any().item()):
+                self._commit_done(step_done_mask)
 
         self.parsed_envs_step = next_parsed_envs_step
         return step_done_mask

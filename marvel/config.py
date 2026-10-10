@@ -154,6 +154,11 @@ class TrainConfig:
     use_compile: bool = True
     compile_backend: str = "inductor"
 
+    benchmark: bool = False
+    profile: bool = False
+    profile_trace_dir: str | None = None
+    profile_warmup_iterations: int = 3
+
     resume_from: str | None = None
     resume_optimizer: bool = True
 

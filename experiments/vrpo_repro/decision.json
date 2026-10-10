@@ -1,0 +1,28 @@
+{
+  "status": "PERF_NO_GO",
+  "reason_code": "PAIRED_MEDIAN_GAIN_BELOW_UNCHANGED_10_PERCENT",
+  "baseline": "BITWISE_REPRODUCIBLE",
+  "numerical": "PASS",
+  "performance": "PERF_NO_GO",
+  "paired_gains": [
+    0.051301156806854875,
+    0.04976133334389177,
+    0.04933872223174496
+  ],
+  "median_gain": 0.04976133334389177,
+  "required_median_gain": 0.1,
+  "thresholds_unchanged": true,
+  "tuned_training_parameters_unchanged": true,
+  "tf32_high_enabled": true,
+  "comparator": "strict deterministic runtime applied identically to both arms; no historical throughput denominator",
+  "extra_pairs_executed": 0,
+  "extra_pairs_reason": "three tightly clustered gains; no material drift needing the allowed extra controls",
+  "p4_trace": "NOT_RUN_PERF_GATE_FAILED",
+  "p4_stability": "NOT_RUN_PERF_GATE_FAILED",
+  "long_training_or_match_quality": "NOT_RUN",
+  "recommendation": "retain FP32+TF32; no main BF16 change",
+  "rejected_measurements": [
+    "rejected-tf32-initialization/wall-a1"
+  ],
+  "cleanup": "PASS"
+}

@@ -12,6 +12,8 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 def main() -> None:
     cfg = tyro.cli(TrainConfig)
+    if (cfg.benchmark or cfg.profile) and cfg.algo_name != "vrpo":
+        raise ValueError("--benchmark and --profile currently require --algo-name vrpo.")
     configure_torch(cfg)
     try:
         trainer_cls = registry.resolve(cfg.algo_name)

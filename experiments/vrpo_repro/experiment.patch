@@ -1,0 +1,37 @@
+--- a/marvel/training/vrpo.py
++++ b/marvel/training/vrpo.py
+@@ -1,7 +1,8 @@
+ from __future__ import annotations
+ 
+ import math
+-from contextlib import ExitStack
++import os
++from contextlib import ExitStack, nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -22,6 +23,15 @@
+     def run(self) -> None:
+         cfg = self.cfg
+         with ExitStack() as stack:
++            critic_forward_autocast = nullcontext()
++            if os.environ.get("MARVEL_EXPERIMENT_CRITIC_BF16", "0") == "1":
++                if torch.device(cfg.device).type != "cuda" or not torch.cuda.is_available() or not torch.cuda.is_bf16_supported(including_emulation = False):
++                    raise RuntimeError("The Critic BF16 experiment requires native CUDA BF16 support.")
++                import torch._functorch.config as functorch_config
++                stack.enter_context(functorch_config.patch(backward_pass_autocast = "off"))
++                if functorch_config.backward_pass_autocast != "off":
++                    raise RuntimeError("Cannot configure compiled backward outside autocast.")
++                critic_forward_autocast = torch.autocast("cuda", dtype = torch.bfloat16)
+             diagnostics = stack.enter_context(VRPODiagnostics(cfg))
+             runtime = self._make_runtime()
+             self._set_seed(runtime)
+@@ -209,7 +219,7 @@
+                                     mb_agent_output = agent_model(rollout = mb_rollout)
+                                     mb_avail_probs_new = mb_agent_output.avail_probs.float()
+ 
+-                            with diagnostics.scope("vrpo.critic.forward"):
++                            with diagnostics.scope("vrpo.critic.forward"), critic_forward_autocast:
+                                 mb_critic_out = critic_model(rollout = mb_rollout)
+ 
+                             with diagnostics.scope("vrpo.critic.gae_loss"):
