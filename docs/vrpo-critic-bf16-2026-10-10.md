@@ -2,6 +2,10 @@
 
 结论：FP32 基线可复现；仅 Critic 训练前向 BF16 数值通过，性能 **PERF_NO_GO**，保留 FP32+TF32。训练参数和数值门槛未改，实验补丁已撤回。
 
+任务状态：**已关闭（2026-10-10，用户要求）**。`PERF_NO_GO` 为本轮最终判定，不再重复相同 BF16 实验，也不继续 P4、长期训练或棋力评估。只有用户明确要求重新开启研究时才恢复执行。
+
+保留全部原始证据及既有哈希索引，原始判定、门槛、日志、张量、状态和脚本均不修改或删除；本地与 LocalServer 档案继续保留。
+
 ## 根因与运行控制
 
 原 FP32 重复对照的首步前向、权重、24 次排列/Replay 索引及最终 CPU/CUDA RNG 相同。首步梯度差异仅在 state_tokens_embed、state_player_embed、action_tokens_embed 三个 Embedding 权重，最大约 1.28e-9；随后经真实更新传播，在第二轮产生 38/3845（0.9883%）个裁剪判定分歧。
@@ -51,9 +55,9 @@ export OMP_NUM_THREADS=6
 
 ## 证据、自检与边界
 
-轻量判定、配对 CSV、冻结门槛和已撤回的候选补丁保留于 experiments/vrpo_repro。补丁基于本次诊断源码，只供隔离工作区复演；生产训练默认没有 BF16 开关或精度变化。
+轻量判定、配对 CSV、冻结门槛和已撤回的候选补丁保留于 experiments/vrpo_repro。补丁基于本次诊断源码，作为原始证据归档；生产训练默认没有 BF16 开关或精度变化。
 
-完整 236 项哈希索引、113 个张量文件、96 份裁剪前梯度、每轮状态、原始日志和复演脚本保存在忽略的 runs/profiles/vrpo-critic-bf16-repro-2026-10-10。本地与 LocalServer 原始档案均核验，服务器绝对路径为 /root/doudizhu/runs/profiles/vrpo-critic-bf16-repro-2026-10-10；该目录的 reproduce_commands.txt 从新目录复用冻结证据执行对照。2 GB 原始档案不纳入 Git。
+完整 236 项哈希索引、113 个张量文件、96 份裁剪前梯度、每轮状态、原始日志和复演脚本保存在忽略的 runs/profiles/vrpo-critic-bf16-repro-2026-10-10。本地与 LocalServer 原始档案均核验，服务器绝对路径为 /root/doudizhu/runs/profiles/vrpo-critic-bf16-repro-2026-10-10；该目录的 reproduce_commands.txt 保留作历史记录，任务关闭后不再执行其中的相同实验。2 GB 原始档案不纳入 Git。
 
 ```bash
 WANDB_DISABLED=true python -m pytest -q \

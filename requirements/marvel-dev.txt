@@ -1,4 +1,0 @@
-# Development + parity test dependencies for MARVEL.
--r marvel-core.txt
-pytest
-transformers

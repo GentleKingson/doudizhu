@@ -1,3 +1,0 @@
-# Core Python deps for running MARVEL (train/eval/infer).
-tyro
-tqdm
