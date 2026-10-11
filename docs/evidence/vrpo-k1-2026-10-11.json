@@ -1,0 +1,167 @@
+{
+  "candidate": "K1 KVCache.reset",
+  "review_status": "READY_FOR_MERGE_REVIEW_NOT_COMMITTED",
+  "standalone_cpu_base": "6f3070686f4e62cb128cc28fcc8886fd2d0edac2",
+  "production_files": [
+    "marvel/model/cache.py"
+  ],
+  "test_files": [
+    "marvel/tests/test_cache_reset.py"
+  ],
+  "file_sha256": {
+    "marvel/model/cache.py": "46b665eef1ba99d69afd8fb6404cf1cd24343c58ed8a9ad2412e0fe0590e3b91",
+    "marvel/tests/test_cache_reset.py": "f59969cf174016f03162b7d839a15c0b46fe965706e17f3943f63b0248ab2abc"
+  },
+  "cpu": {
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0,
+    "elapsed_seconds": 2.21,
+    "groups": {
+      "marvel.tests.test_cache_reset": 41,
+      "kagami.tests.test_doudizhu_engine": 26,
+      "kagami.tests.test_doudizhu_search": 15,
+      "kagami.tests.test_local_subgame_search": 9,
+      "evaluations.doudizhu.tests.unit.test_marvel_agent_wiring": 6
+    },
+    "runtime": {
+      "python": "3.11.15",
+      "torch": "2.13.0",
+      "cuda": null
+    },
+    "command": "CUDA_VISIBLE_DEVICES= WANDB_DISABLED=true PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 OMP_NUM_THREADS=1 python -m pytest -q -ra marvel/tests/test_cache_reset.py kagami/tests evaluations/doudizhu/tests/unit/test_marvel_agent_wiring.py",
+    "native_extension": "Existing temporary CPU extension built from unchanged repository C++ sources; no dependency changes."
+  },
+  "prior_gpu": {
+    "numeric": "K1 live Sampler two-iteration comparison: 34 exact checks; model/optimizer/RNG exact; agent16/critic16 updates; 24 random draws.",
+    "cuda_contracts": "51 K1 CUDA tests passed before an unrelated E1 test-helper failure stopped the original batch.",
+    "measured_baseline": "L0 + common continuous-timing/observer patch; each K1 performance pair differs only in marvel/model/cache.py. This turn did not remeasure HEAD+K1 on GPU.",
+    "confirmation": {
+      "status": "PASS_ENGINEERING",
+      "point_wall_reduction_percent": 3.653210918591243,
+      "ci95_wall_reduction_percent": [
+        3.234259581222121,
+        4.070348388548983
+      ],
+      "independent_pairs": 2,
+      "degrees_of_freedom": 1,
+      "quality": "NOT_VERIFIED",
+      "limitation": "Two-pair Student-t interval assumes independent approximately normal log ratios; normality and variance cannot be established from n=2."
+    },
+    "pairs": [
+      {
+        "wall_reduction_percent": 3.6861060065925266,
+        "log_wall_ratio": 0.03755759936258375,
+        "count_relative_changes": {
+          "env_steps_delta": -0.00235663786331497,
+          "game_steps_delta": -0.003332934008762334,
+          "completed_games_delta": 0.0
+        },
+        "histogram_tv": {
+          "length_histogram": 0.060677083333333326,
+          "legal_action_count_histogram": 0.005359032825049956
+        },
+        "status": "PASS_WORKLOAD",
+        "pair": 1,
+        "order": [
+          "a",
+          "b"
+        ],
+        "steady_temperature_difference": 3.6363636363636402
+      },
+      {
+        "wall_reduction_percent": 3.62030459558772,
+        "log_wall_ratio": 0.036874635141841985,
+        "count_relative_changes": {
+          "env_steps_delta": -0.001577287066246047,
+          "game_steps_delta": -0.002839332498741687,
+          "completed_games_delta": -0.0005204267499349102
+        },
+        "histogram_tv": {
+          "length_histogram": 0.07473958333333333,
+          "legal_action_count_histogram": 0.005282887035062999
+        },
+        "status": "PASS_WORKLOAD",
+        "pair": 2,
+        "order": [
+          "b",
+          "a"
+        ],
+        "steady_temperature_difference": 0.7272727272727195
+      }
+    ],
+    "runs": {
+      "pair-1-a": {
+        "wall_seconds": 56.410028341000725,
+        "startup_and_warmup_seconds": 45.96825841899408,
+        "process_wall_seconds": 104.57902055700106,
+        "measured_iterations": 30,
+        "trajectories": 3840,
+        "completed_games": 3841,
+        "env_steps": 325888,
+        "game_steps": 233728,
+        "max_memory_allocated": 7153140224,
+        "max_memory_reserved": 7797211136
+      },
+      "pair-1-b": {
+        "wall_seconds": 54.33069489800255,
+        "startup_and_warmup_seconds": 44.741068445000565,
+        "process_wall_seconds": 101.29693911199865,
+        "measured_iterations": 30,
+        "trajectories": 3840,
+        "completed_games": 3841,
+        "env_steps": 325120,
+        "game_steps": 232949,
+        "max_memory_allocated": 7169697792,
+        "max_memory_reserved": 7797211136
+      },
+      "pair-2-a": {
+        "wall_seconds": 56.29294936899532,
+        "startup_and_warmup_seconds": 46.079571351001505,
+        "process_wall_seconds": 104.50917924099485,
+        "measured_iterations": 30,
+        "trajectories": 3840,
+        "completed_games": 3843,
+        "env_steps": 324608,
+        "game_steps": 232449,
+        "max_memory_allocated": 7140122112,
+        "max_memory_reserved": 7797211136
+      },
+      "pair-2-b": {
+        "wall_seconds": 54.254973135997716,
+        "startup_and_warmup_seconds": 44.702189544004796,
+        "process_wall_seconds": 101.08942885899887,
+        "measured_iterations": 30,
+        "trajectories": 3840,
+        "completed_games": 3841,
+        "env_steps": 324096,
+        "game_steps": 231789,
+        "max_memory_allocated": 7130677760,
+        "max_memory_reserved": 7797211136
+      }
+    },
+    "resources": {
+      "samples": 84,
+      "observed_peak_memory_mib": 7680.0,
+      "observed_peak_temperature_c": 69.0
+    },
+    "limitations": [
+      "Only two independent pairs, df=1; normality/variance cannot be validated at n=2.",
+      "Random real-sampling workload is comparable within declared tolerances, not identical.",
+      "Historical A/A calibration is not a fresh contemporaneous noise control.",
+      "Identical observers retain 95185920 GPU bytes; timings include observer overhead.",
+      "No combined candidates, long-run quality, publication, or default adoption authorized."
+    ],
+    "cumulative_seconds": 1614.4604000000002,
+    "gpu_seconds_this_review": 0
+  },
+  "evidence_sha256": {
+    "logs/vrpo-k1-confirm-2026-10-11/protocol.json": "f517b282b887146e69eade1cdb414ce094459c6a41ef59561dd53ceba9595795",
+    "logs/vrpo-k1-confirm-2026-10-11/evidence.tar.gz": "aac4644f2af05488c5007d9647520779687e1b9543e20bac4ba56bff6740094f",
+    "logs/vrpo-k1-confirm-2026-10-11/result-summary.json": "064794656eed6b1e59a465858445879eb2a7bb5d23708a9cd45c99d00f85443a",
+    "logs/vrpo-gpu-firstpass-2026-10-11/results/live-k1/summary.json": "8ce8c6e12cb1ae8fbc14bd77ded483f42856a8591f8a04b6fae6e6efbe5975e1",
+    "logs/vrpo-gpu-firstpass-2026-10-11/results/cuda-contracts.log": "f33d0ec56718405fb07c95f4c15b03b5d3c300333844c428a90ad77d61f10bfc",
+    "logs/vrpo-k1-engineering-2026-10-11/cpu-regression.xml": "dfa241ce10e742ffef616a1bc348d838c11276dbd79a74448d131bd68c80835e",
+    "logs/vrpo-k1-engineering-2026-10-11/cpu-regression.log": "5fbd3029fc311a06c9b0a4f203cdbb1b1351a87ca36052a896d7f8807f19ed35"
+  }
+}
