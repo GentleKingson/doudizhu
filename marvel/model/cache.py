@@ -392,9 +392,9 @@ class KVCache(Cache):
         self._seq_lens.masked_fill_(reset_mask, 0)
         self._position_ids.masked_fill_(reset_mask, 0)
 
-        reset_kv = reset_mask.view(1, self.batch, 1, 1, 1)
-        self.keys.masked_fill_(reset_kv, 0)
-        self.values.masked_fill_(reset_kv, 0)
+        reset_rows = reset_mask.nonzero(as_tuple = True)[0]
+        self.keys.index_fill_(1, reset_rows, 0)
+        self.values.index_fill_(1, reset_rows, 0)
 
 
 __all__ = ["Cache", "DynamicCache", "KVCache", "PastKVInput"]
