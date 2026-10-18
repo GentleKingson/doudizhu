@@ -147,8 +147,9 @@ StepResult<DouDiZhuGame<Config>> DouDiZhuGame<Config>::step(const Action<DouDiZh
         if (player == 2) return std::string("P2");
         throw std::runtime_error("DouDiZhu committed action player index out of range.");
     };
+    // History uses rank-sorted cards; staged action strings keep their selection order.
     const std::string next_history_str =
-        append_history_segment(live_history_tracker_.live_history_str, player_tag(acting_player) + "-" + committed_action_str);
+        append_history_segment(live_history_tracker_.live_history_str, player_tag(acting_player) + "-" + Game::Endpoint::describe_committed_action(*matches.front()));
     bool reset_lead = false;
     if (chosen.type == Combo::Type::PASS) {
         ++consecutive_passes_;

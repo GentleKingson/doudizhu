@@ -1,0 +1,40 @@
+{
+  "repository": "https://github.com/AtaraxosAI/doudizhu.git",
+  "commit": "acdcf199cf422e2b683cb22142b8e7cb33b14460",
+  "fixed": {
+    "rollout": 512,
+    "collect": 2048,
+    "mini_batches": 4,
+    "replay_buffer_scale": 64,
+    "replay_buffer_device": "cpu",
+    "agent_merging_beta": 0.999,
+    "lr_stable_iterations": 5000,
+    "reg_stable_iterations": 500,
+    "actor_epochs": 4,
+    "critic_epochs": 4,
+    "precision": "upstream FP32/TF32; no mixed precision changes"
+  },
+  "candidates": [
+    {
+      "rollout": 512,
+      "collect": 2048,
+      "mini_batches": 4,
+      "threads": 6
+    },
+    {
+      "rollout": 512,
+      "collect": 2048,
+      "mini_batches": 4,
+      "threads": 4
+    },
+    {
+      "rollout": 512,
+      "collect": 2048,
+      "mini_batches": 4,
+      "threads": 8
+    }
+  ],
+  "memory_gate": ">=15% VRAM headroom and >=20% available host RAM; no checkpoints",
+  "verification": "winner 64 warmup +16 measured, seeds0 and1; screen16+8 is provisional",
+  "budget_minutes": 75
+}

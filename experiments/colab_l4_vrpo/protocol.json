@@ -1,0 +1,65 @@
+{
+  "repository": "https://github.com/AtaraxosAI/doudizhu.git",
+  "commit": "acdcf199cf422e2b683cb22142b8e7cb33b14460",
+  "algorithm": "original VRPOTrainer + CentralCritic(qvalue)",
+  "fixed": {
+    "model": "v1.3",
+    "precision": "FP32/TF32",
+    "compile": "default Inductor",
+    "policy_epochs": 4,
+    "critic_epochs": 4,
+    "replay_buffer_scale": 16,
+    "optimizer": "Muon/AdamW"
+  },
+  "primary_metric": "delivered training trajectories per steady-state second",
+  "memory_gate": "max(NVML sampled peak, PyTorch peak reserved + 512 MiB) <= total VRAM - max(3072 MiB, 15% total VRAM)",
+  "screen": {
+    "warmup": 16,
+    "measure": 8
+  },
+  "verification": {
+    "warmup": 16,
+    "measure": 16,
+    "block_size": 8,
+    "seeds": [
+      0,
+      1
+    ]
+  },
+  "candidates": [
+    {
+      "rollout": 256,
+      "collect": 128,
+      "mini_batches": 2,
+      "threads": 2
+    },
+    {
+      "rollout": 512,
+      "collect": 256,
+      "mini_batches": 2,
+      "threads": 2
+    },
+    {
+      "rollout": 512,
+      "collect": 256,
+      "mini_batches": 4,
+      "threads": 2
+    },
+    {
+      "rollout": 1024,
+      "collect": 256,
+      "mini_batches": 2,
+      "threads": 2
+    },
+    {
+      "rollout": 512,
+      "collect": 512,
+      "mini_batches": 4,
+      "threads": 2
+    }
+  ],
+  "adaptive": "Compare best at 1/4 CPU threads and minibatches 1/2/4; at most 9 screened configs; verify top two with two seeds; 65 minute total VM job budget.",
+  "caveats": "Replay scale 16 is a memory-conscious tuning choice versus repository default 64. Batch and minibatch changes affect learning dynamics. Optimize measured throughput, not strength or convergence. No global optimum claim.",
+  "checkpoints_during_tuning": false,
+  "budget_adjustment": "Before verification, initial L4 measurements showed 8.4 s/iteration at collect=256. Reduce planned verification from 32+24 to 16+16 (replay remains fully warmed) and screening cap from14 to9 to reserve time for two-seed confirmation."
+}

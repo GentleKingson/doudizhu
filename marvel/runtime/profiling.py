@@ -35,17 +35,26 @@ _REQUIRED_SCOPES = {
     "sampler.actions_d2h", "sampler.env_step", "sampler.obs_h2d",
     "sampler.buffer_commit", "sampler.collect_clone_consume",
 }
+_IPPO_REQUIRED_SCOPES = {
+    "ippo.iteration", "ippo.rollout.collect", "ippo.rollout.metrics",
+    "ippo.bootstrap.agent_forward", "ippo.bootstrap.gae",
+    "ippo.policy.batch_prepare", "ippo.policy.forward", "ippo.policy.loss",
+    "ippo.policy.backward", "ippo.policy.grad_clip", "ippo.policy.optimizer",
+    "ippo.policy.metrics", "ippo.ema", "ippo.log_and_save",
+} | {name for name in _REQUIRED_SCOPES if name.startswith("sampler.")}
 
 
 def diagnostic_scope(enabled: bool, name: str):
     return torch.profiler.record_function(name) if enabled else _NO_SCOPE
 
 
-def validate_trace(path: Path) -> dict:
-    return _validate_events(json.loads(path.read_text())["traceEvents"])
+def validate_trace(path: Path, algo_name: str = "vrpo") -> dict:
+    return _validate_events(json.loads(path.read_text())["traceEvents"], algo_name)
 
 
-def _validate_events(events: list[dict]) -> dict:
+def _validate_events(events: list[dict], algo_name: str = "vrpo") -> dict:
+    if algo_name not in {"ippo", "vrpo"}:
+        raise ValueError(f"Unsupported diagnostic algorithm: {algo_name}")
     scopes = {e.get("name") for e in events if e.get("cat") == "user_annotation"}
     cpu_events = sum(e.get("cat") == "cpu_op" for e in events)
     cuda_kernels = sum(e.get("cat") == "kernel" for e in events)
@@ -55,7 +64,8 @@ def _validate_events(events: list[dict]) -> dict:
         ))
         for e in events
     )
-    missing = sorted(_REQUIRED_SCOPES - scopes)
+    required = _IPPO_REQUIRED_SCOPES if algo_name == "ippo" else _REQUIRED_SCOPES
+    missing = sorted(required - scopes)
     return {
         "status": "PROFILE_VALID" if cpu_events and cuda_kernels and not missing and not compilation_events else "PROFILE_INVALID",
         "cpu_events": cpu_events,
@@ -82,7 +92,7 @@ def trace_phase_summary(events: list[dict]) -> tuple[list[dict], int]:
     phases: dict[str, dict] = {}
     for event in events:
         name = event.get("name", "")
-        if event.get("cat") != "user_annotation" or not name.startswith(("vrpo.", "sampler.")):
+        if event.get("cat") != "user_annotation" or not name.startswith(("ippo.", "vrpo.", "sampler.")):
             continue
         phase = phases.setdefault(name, dict(phase = name, cpu_inclusive_ms = 0.0, cuda_kernel_ms = 0.0, count = 0))
         start = bisect_left(launch_times, event["ts"])
@@ -98,7 +108,7 @@ def trace_phase_summary(events: list[dict]) -> tuple[list[dict], int]:
 
 
 class VRPODiagnostics:
-    """Opt-in iteration wall measurements and one CPU/CUDA diagnostic iteration."""
+    """Opt-in IPPO/VRPO wall measurements and one CPU/CUDA diagnostic iteration."""
 
     def __init__(self, cfg: TrainConfig) -> None:
         self.cfg = cfg
@@ -107,16 +117,24 @@ class VRPODiagnostics:
         self.sampler = None
         self.rows: list[dict] = []
         self.validation: dict | None = None
+        self.iterations_seen = 0
+        self.block_start = None
 
     def __enter__(self):
+        if self.cfg.benchmark_contiguous and (not self.cfg.benchmark or self.cfg.profile):
+            raise ValueError("benchmark_contiguous requires benchmark=True and profile=False.")
         if not self.enabled:
             return self
+        if self.cfg.algo_name not in {"ippo", "vrpo"}:
+            raise ValueError("Training diagnostics require IPPO or VRPO.")
         if int(os.environ.get("WORLD_SIZE", "1")) != 1:
-            raise ValueError("VRPO diagnostics currently require a single process/GPU.")
+            raise ValueError("Training diagnostics currently require a single process/GPU.")
         if self.cfg.profile_warmup_iterations < 0:
             raise ValueError("profile_warmup_iterations must be non-negative.")
         if self.cfg.total_iterations < self.cfg.profile_warmup_iterations + 3:
             raise ValueError("Diagnostics require warm-up iterations plus at least 3 full iterations.")
+        if self.cfg.benchmark_contiguous:
+            self.run_start = time.perf_counter()
         self.device = torch.device(self.cfg.device)
         self.directory = Path(self.cfg.profile_trace_dir or str(Path(self.cfg.logging_dir) / "profiles"))
         self.directory.mkdir(parents = True, exist_ok = False)
@@ -128,7 +146,10 @@ class VRPODiagnostics:
         ):
             (self.directory / "findings.md").write_text("INCONCLUSIVE: profiling requires CUDA hardware and both CPU/CUDA activities.\n")
             raise RuntimeError("Profiling requires CUDA hardware and both CPU/CUDA activities.")
-        self.wall_file = (self.directory / ("profile_wall.csv" if self.cfg.profile else "wall_baseline.csv")).open("x", newline = "")
+        filename = "wall_contiguous.csv" if self.cfg.benchmark_contiguous else (
+            "profile_wall.csv" if self.cfg.profile else "wall_baseline.csv"
+        )
+        self.wall_file = (self.directory / filename).open("x", newline = "")
         self.wall_writer = None
         return self
 
@@ -184,6 +205,10 @@ class VRPODiagnostics:
             yield
             return
         self.sampler = sampler
+        if self.cfg.benchmark_contiguous:
+            with self._contiguous_iteration(iteration, sampler):
+                yield
+            return
         position = len(self.rows)
         if self.cfg.profile and position == self.cfg.profile_warmup_iterations:
             self.profiler = torch.profiler.profile(
@@ -203,7 +228,7 @@ class VRPODiagnostics:
             torch.cuda.synchronize(self.device)
             torch.cuda.reset_peak_memory_stats(self.device)
         start = time.perf_counter()
-        with self.scope("vrpo.iteration"):
+        with self.scope(f"{self.cfg.algo_name}.iteration"):
             yield
         if self.device.type == "cuda":
             torch.cuda.synchronize(self.device)
@@ -220,6 +245,7 @@ class VRPODiagnostics:
             "env_steps_per_second": (sampler.total_env_steps - env_before) / elapsed,
             "game_steps_per_second": (sampler.total_game_steps - steps_before) / elapsed,
             "max_memory_allocated": torch.cuda.max_memory_allocated(self.device) if self.device.type == "cuda" else None,
+            "compiled_unique_graphs": torch._dynamo.utils.counters["stats"]["unique_graphs"],
         }
         if self.wall_writer is None:
             self.wall_writer = csv.DictWriter(self.wall_file, fieldnames = list(row))
@@ -229,6 +255,56 @@ class VRPODiagnostics:
         self.rows.append(row)
         if self.profiler is not None:
             self.profiler.step()
+
+    @contextmanager
+    def _contiguous_iteration(self, iteration: int, sampler):
+        sampler.profile = False
+        if self.iterations_seen == self.cfg.profile_warmup_iterations:
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+                torch.cuda.reset_peak_memory_stats(self.device)
+            self.block_before = (
+                sampler.total_env_steps, sampler.total_game_steps,
+                sampler.total_completed_games, sampler.commit_buffer_size,
+            )
+            self.block_first_iteration = iteration
+            self.block_graphs = torch._dynamo.utils.counters["stats"]["unique_graphs"]
+            self.block_start = time.perf_counter()
+        yield
+        self.iterations_seen += 1
+        if iteration == self.cfg.total_iterations and self.block_start is not None:
+            # Include all queued device work, without fencing or flushing inside the block.
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+            elapsed = time.perf_counter() - self.block_start
+            env_before, steps_before, games_before, pending_before = self.block_before
+            games = sampler.total_completed_games - games_before
+            trajectories = games + pending_before - sampler.commit_buffer_size
+            count = self.iterations_seen - self.cfg.profile_warmup_iterations
+            graphs = torch._dynamo.utils.counters["stats"]["unique_graphs"]
+            row = {
+                "first_iteration": self.block_first_iteration, "last_iteration": iteration,
+                "iterations": count, "block_wall_ms": elapsed * 1000,
+                "startup_and_warmup_ms": (self.block_start - self.run_start) * 1000,
+                "amortized_iteration_wall_ms": elapsed * 1000 / count,
+                "collect_batch_size": trajectories, "completed_games_delta": games,
+                "env_steps_delta": sampler.total_env_steps - env_before,
+                "game_steps_delta": sampler.total_game_steps - steps_before,
+                "trajectories_per_second": trajectories / elapsed,
+                "games_per_second": games / elapsed,
+                "env_steps_per_second": (sampler.total_env_steps - env_before) / elapsed,
+                "game_steps_per_second": (sampler.total_game_steps - steps_before) / elapsed,
+                "max_memory_allocated": torch.cuda.max_memory_allocated(self.device) if self.device.type == "cuda" else None,
+                "max_memory_reserved": torch.cuda.max_memory_reserved(self.device) if self.device.type == "cuda" else None,
+                "compiled_unique_graphs_before": self.block_graphs,
+                "compiled_unique_graphs_after": graphs,
+                "status": "MEASURED" if graphs == self.block_graphs and count >= 3 else "INCONCLUSIVE",
+            }
+            writer = csv.DictWriter(self.wall_file, fieldnames = list(row))
+            writer.writeheader()
+            writer.writerow(row)
+            self.wall_file.flush()
+            self.rows.append(row)
 
     def _export_trace(self, profiler) -> None:
         trace = self.directory / "trace.json"
@@ -242,7 +318,7 @@ class VRPODiagnostics:
             writer = csv.DictWriter(output, fieldnames = ["phase", "cpu_inclusive_ms", "cuda_kernel_ms", "count", "avg_cpu_per_call_ms", "avg_cuda_per_call_ms", "iteration_wall_share", "evidence"])
             writer.writeheader()
             writer.writerows(phases)
-        self.validation = _validate_events(trace_events)
+        self.validation = _validate_events(trace_events, self.cfg.algo_name)
         self.validation["uncorrelated_cuda_kernels"] = unmatched
         if unmatched:
             self.validation["status"] = "PROFILE_INVALID"
@@ -261,7 +337,13 @@ class VRPODiagnostics:
         lines = ["INCONCLUSIVE: bottleneck attribution requires review of wall measurements and the CPU/CUDA timeline."]
         if exc_value is not None:
             lines.append(f"Run failed: {type(exc_value).__name__}: {exc_value}")
-        samples = [r["iteration_wall_ms"] for r in self.rows if r["phase"] == "measurement"]
+        samples = [r["iteration_wall_ms"] for r in self.rows if r.get("phase") == "measurement"]
+        if self.cfg.benchmark_contiguous:
+            if self.rows:
+                row = self.rows[0]
+                lines.append(f"{row['status']}: {row['iterations']} contiguous iterations, {row['block_wall_ms']:.3f} ms total, {row['amortized_iteration_wall_ms']:.3f} ms per iteration. This is a measurement, not a performance gate verdict.")
+            else:
+                lines.append("INCONCLUSIVE: no complete post-warm-up block; partial work is not a timing sample.")
         if samples:
             p90 = statistics.quantiles(samples, n = 10, method = "inclusive")[8] if len(samples) > 1 else samples[0]
             lines.append(f"{len(samples)} post-warm-up iterations: median {statistics.median(samples):.3f} ms, P90 {p90:.3f} ms, min/max {min(samples):.3f}/{max(samples):.3f} ms.")

@@ -1,0 +1,39 @@
+RTX 5070 reusable VRPO + CentralCritic launcher (LocalServer / Linux systemd)
+
+Run on LocalServer:
+  cd /root/doudizhu
+  .venv/bin/python experiments/localserver_5070/launch_training.py --training-minutes 120
+
+Defaults:
+  Resume logs/localserver-5070-2026-10-12/train/checkpoints/ckpt_576.pt.
+  Train for 120 minutes; save every 30 minutes; retain the latest 10 checkpoints.
+  Chunk 32, CPU threads 8, rollout 512; restore the full checkpoint training recipe.
+  Restore online policy, EMA policy, CentralCritic and both optimizers.
+  Each invocation creates logs/rtx5070-<timestamp>-<id>/; old run folders are preserved.
+  Rolling retention applies only to the new run's train/checkpoints directory.
+
+Custom example (use an actual checkpoint path):
+  .venv/bin/python experiments/localserver_5070/launch_training.py \
+    --resume-from /path/to/ckpt_576.pt \
+    --training-minutes 240 --save-every-minutes 15 --keep-checkpoints 20
+
+Preview without starting a service or creating a run directory:
+  .venv/bin/python experiments/localserver_5070/launch_training.py --dry-run
+
+The launcher prints its systemd unit, log directory, status and stop commands.
+SSH can disconnect after launch. To stop and save, use systemctl stop <printed-unit>.
+A file lock prevents two instances of this launcher from training simultaneously.
+Other GPU applications do not honor that lock: ensure enough free GPU memory.
+
+Duration starts at the iteration loop, after checkpoint/model initialization.
+Training and periodic saves finish at iteration boundaries; a final save is always
+requested on normal completion. Initialization/compilation, the last iteration and
+saving may add wall time. systemd has a fallback limit of duration + 15 minutes,
+then allows 180 seconds for graceful shutdown. A hang or forced kill cannot
+promise a final checkpoint. The checkpoint's original total_iterations remains
+in force (40000 for the supplied checkpoint).
+
+Replay, RNG and environment state are absent from upstream checkpoints. Replay
+refills on resume; the result is not bitwise identical to uninterrupted training.
+Do not launch run.py directly without the environment settings in launch.json.
+The old fixed 2026-10-12 07:00 cutoff is no longer used by either launcher or runner.

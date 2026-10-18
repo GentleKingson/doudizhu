@@ -249,6 +249,7 @@ class Sampler:
         *,
         agent_model: Any,
         forced_action_indices: torch.Tensor | None = None,
+        generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """Advance environments by one step and return the per-env is_terminal mask for that step.
 
@@ -262,6 +263,7 @@ class Sampler:
 
         Args:
             agent_model: trained MARVEL agent module.
+            generator: optional local RNG for action and chance sampling.
             forced_action_indices: optional tensor of shape ``[rollout_batch_size]`` with
                 per-env action indices into ``parsed_envs_step["avail_tokens"]``. When
                 provided, player-node action selection bypasses the sampling-temperature
@@ -329,7 +331,7 @@ class Sampler:
             else:
                 scaled_logits = (raw_logits / self._sampling_temperature + log_prior).masked_fill(~avail_mask, neg_inf)
                 sampling_probs = torch.softmax(scaled_logits, dim = 1)
-                action_taken = torch.multinomial(sampling_probs, 1).squeeze(1)
+                action_taken = torch.multinomial(sampling_probs, 1, generator = generator).squeeze(1)
 
             # Chance / environment steps are not agent decisions: sample from the provided
             # action weights (which represent a probability mass function).
@@ -338,7 +340,7 @@ class Sampler:
             avail_probs_used = avail_probs
             if torch.any(chance_mask):
                 chance_weights = self.parsed_envs_step["avail_weights"].float()
-                sampled = torch.multinomial(chance_weights[chance_mask], 1).squeeze(1)
+                sampled = torch.multinomial(chance_weights[chance_mask], 1, generator = generator).squeeze(1)
                 action_taken = action_taken.clone()
                 action_taken[chance_mask] = sampled
 

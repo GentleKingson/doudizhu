@@ -449,8 +449,8 @@ def test_rollout_to_terminal_fails_fast_at_game_horizon() -> None:
         def prepare_agent_cache(self, *, agent_model):  # noqa: ANN001
             del agent_model
 
-        def rollout_step(self, *, agent_model):  # noqa: ANN001
-            del agent_model
+        def rollout_step(self, *, agent_model, generator = None):  # noqa: ANN001
+            del agent_model, generator
             return torch.zeros(1, dtype = torch.bool)
 
     with pytest.raises(RuntimeError, match = "MAX_GAME_HORIZON"):

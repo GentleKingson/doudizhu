@@ -129,6 +129,10 @@ class SearchRolloutSession:
         return self.run_sampler_rollout(
             sampler = sampler,
             agent_model = agent_model,
+            # Keep search sampling independent of process startup and request order.
+            generator = torch.Generator(
+                device = sampler.device if sampler.device.type != "mps" else "cpu",
+            ).manual_seed(int(seed)),
             forced_first_action_indices = torch.as_tensor(
                 root_action_indices, dtype = torch.long,
                 device = torch.device(getattr(self._policy_model, "_device")),
@@ -292,6 +296,7 @@ class SearchRolloutSession:
         sampler: Sampler,
         agent_model: Any,
         forced_first_action_indices: torch.Tensor | None = None,
+        generator: torch.Generator | None = None,
     ) -> np.ndarray:
         """Run the Sampler to terminal and return per-env root-player rewards.
 
@@ -328,9 +333,10 @@ class SearchRolloutSession:
                     step_done = sampler.rollout_step(
                         agent_model = agent_model,
                         forced_action_indices = forced_first_action_indices,
+                        generator = generator,
                     )
                 else:
-                    step_done = sampler.rollout_step(agent_model = agent_model)
+                    step_done = sampler.rollout_step(agent_model = agent_model, generator = generator)
                 step_done_np = np.asarray(step_done.detach().to(device = torch.device("cpu")).numpy(), dtype = bool)
                 outcome_rewards = (
                     sampler.parsed_envs_step.outcome["rewards"]

@@ -35,13 +35,14 @@ class EnvStepBatch:
     @classmethod
     def from_env_step(cls, envs_step, cfg: TrainConfig) -> "EnvStepBatch":
         """Convert a raw environment step into structured tensors."""
-        batch = int(envs_step.rewards.shape[0])
+        rewards = envs_step.rewards
+        batch = int(rewards.shape[0])
         device = torch.device(cfg.device)
 
         outcome = EnvOutcome(
             TensorDict(
                 {
-                    "rewards": envs_step.rewards,
+                    "rewards": rewards,
                     "is_terminal": envs_step.is_terminal.astype(bool),
                 },
                 batch_size = [batch],
@@ -49,15 +50,17 @@ class EnvStepBatch:
             )
         )
 
+        observations = envs_step.observations
         observation = TensorDict(
             {
-                "obs_tokens": envs_step.observations.tokens.astype(np.int64),
+                "obs_tokens": observations.tokens.astype(np.int64),
                 # Channels are 0/1 indicators; store as uint8 to shrink buffer footprint.
-                "obs_channels": envs_step.observations.channels.astype(np.uint8),
+                "obs_channels": observations.channels.astype(np.uint8),
                 "player_ids": envs_step.player_ids.astype(np.int64),
-                "avail_tokens": envs_step.available_actions.tokens.astype(np.int64),
-                "avail_weights": envs_step.available_actions.weights,
-                "avail_is_commit": envs_step.available_actions.is_commit.astype(bool),
+                # Keep this lazy getter after observation/player conversion errors.
+                "avail_tokens": (available_actions := envs_step.available_actions).tokens.astype(np.int64),
+                "avail_weights": available_actions.weights,
+                "avail_is_commit": available_actions.is_commit.astype(bool),
             },
             batch_size = [batch],
             device = device,

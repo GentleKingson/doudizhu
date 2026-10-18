@@ -155,6 +155,7 @@ class TrainConfig:
     compile_backend: str = "inductor"
 
     benchmark: bool = False
+    benchmark_contiguous: bool = False
     profile: bool = False
     profile_trace_dir: str | None = None
     profile_warmup_iterations: int = 3

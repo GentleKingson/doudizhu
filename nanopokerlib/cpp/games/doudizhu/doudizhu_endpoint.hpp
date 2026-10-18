@@ -75,6 +75,9 @@ struct DouDiZhuGame<Config>::Endpoint : DouDiZhuGame<Config> {
     );
 
     static std::string describe_live_sequence_step(const Sequence& seq, int step_idx) { return sequence_step_string(seq, step_idx); }
+    static std::string describe_committed_action(const Sequence& seq) {
+        return seq.combo.type == Combo::Type::PASS ? "PASS" : counts_to_cards(combo_counts(seq.combo));
+    }
     static std::string opening_root_history_str(const Game& state);
 
 private:

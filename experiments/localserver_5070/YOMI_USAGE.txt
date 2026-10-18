@@ -1,0 +1,18 @@
+LocalServer RTX 5070：Yomi 优化参数
+
+参数：experiments/localserver_5070/yomi_optimized.json
+完整实测记录：experiments/localserver_5070/yomi_optimization_report.json
+原始日志：/root/doudizhu/logs/yomi-optimize-20261012-114224
+
+JSON 的 train_config 可用 yomi.config.deserialize_train_config(..., strict=True) 读取。
+JSON 的 environment 为启动进程的环境变量，training_argv 为已核验与配置一致的现有 yomi.train 命令。
+启动时使用独占 flock 锁，并追加 --logging-dir 指向新目录；长训练通过 systemd-run 托管。
+本次只完成参数优化、两种种子各 1000 轮验证和独立验证集检查，未启动 40000 轮训练。
+不从旧 logs/smoke-yomi/checkpoints/ckpt_1.pt 恢复，该单轮 smoke 学习率为 0。
+
+推荐并行牌局 32、采集间隔 8、交错预热 0、CPU 线程 4；关闭编译，启用可扩展显存分配。
+学习率 0.0004、Muon/AdamW、模型 v1.3 的 4 层/4 头/256 维及原损失配置保持不变。
+每 100 轮验证和记录参数统计，每 1000 轮保存，默认总轮数 40000。
+吞吐从约 248 到 1050 样本/秒。样本分组发生变化，同轮数不是同训练量，也不是相同学习效果。
+长测峰值张量显存 9.3 GiB，2000 轮无分配重试；更长训练仍可能出现罕见批量峰值。
+搜索胜率尚未验证。
