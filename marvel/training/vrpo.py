@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import math
+import json
+import os
+import time
+from pathlib import Path
 from contextlib import ExitStack
 
 import torch
@@ -50,8 +54,9 @@ class VRPOTrainer(AlgorithmTrainer):
                 "total_env_steps": 0,
                 "total_game_steps": 0,
             })
-            runtime.resume(state)
-            agent_model_merge_updater.set_reference_iteration(state.iteration)
+            if not cfg.full_state_checkpoints:
+                runtime.resume(state)
+                agent_model_merge_updater.set_reference_iteration(state.iteration)
 
             agent_model = runtime.prepare(agent_model_base)
             critic_model = runtime.prepare(critic_model_base)
@@ -69,8 +74,26 @@ class VRPOTrainer(AlgorithmTrainer):
                 field_specs = specs,
             )
             replay_buffer = TrajectoryBuffer(per_rank_capacity, buffer_config)
+            if cfg.full_state_checkpoints:
+                from marvel.runtime.full_state import restore, model_hash, write_json
+                runtime.full_replay = replay_buffer
+                runtime.full_ema = agent_model_merge_updater
+                state["actor_optimizer_steps"] = 0
+                state["critic_optimizer_steps"] = 0
+                if cfg.resume_from:
+                    restore(runtime, state, replay_buffer, agent_model_merge_updater, cfg.resume_from)
+                else:
+                    runtime._state = state
+                    initial_models = {
+                        "seed": cfg.seed, "actor_sha256": model_hash(agent_model_base),
+                        "critic_sha256": model_hash(critic_model_base)}
+                    expected = getattr(runtime, "expected_initial_models", initial_models)
+                    if initial_models != expected:
+                        raise ValueError("Initial Actor/Critic hashes do not match this seed's frozen pairing")
+                    write_json(Path(cfg.logging_dir)/"initial_models.json", initial_models)
 
             for iteration in runtime:
+                iteration_started = time.monotonic()
                 with diagnostics.iteration(iteration, runtime.sampler if diagnostics.enabled else None):
                     with diagnostics.scope("vrpo.schedule"):
                         sched = self._compute_agent_schedule(iteration)
@@ -138,6 +161,8 @@ class VRPOTrainer(AlgorithmTrainer):
                                 )
 
                                 agent_loss_mean = pg_loss.pg_loss_mean + sched.reg_coef * pg_loss.kl_unif_mean
+                                if cfg.full_state_checkpoints and not torch.isfinite(agent_loss_mean).item():
+                                    raise FloatingPointError("Non-finite Actor loss")
 
                             with diagnostics.scope("vrpo.policy.zero_grad"):
                                 agent_optimizer.zero_grad()
@@ -146,7 +171,8 @@ class VRPOTrainer(AlgorithmTrainer):
                                 agent_loss_mean.backward()
 
                             with diagnostics.scope("vrpo.policy.grad_clip"):
-                                nn.utils.clip_grad_norm_(agent_model_base.parameters(), cfg.optimizer.grad_max_norm)
+                                nn.utils.clip_grad_norm_(agent_model_base.parameters(), cfg.optimizer.grad_max_norm,
+                                                         error_if_nonfinite=cfg.full_state_checkpoints)
 
                             if is_first and log_param_stats:
                                 with diagnostics.scope("vrpo.policy.param_stats"):
@@ -154,6 +180,8 @@ class VRPOTrainer(AlgorithmTrainer):
 
                             with diagnostics.scope("vrpo.policy.optimizer"):
                                 agent_optimizer.step()
+                                if cfg.full_state_checkpoints:
+                                    state["actor_optimizer_steps"] += 1
 
                             if is_first or is_last:
                                 with diagnostics.scope("vrpo.policy.metrics"):
@@ -232,6 +260,8 @@ class VRPOTrainer(AlgorithmTrainer):
                                 )
                                 qv_lbd_loss_mean = qvalue_loss.qv_lbd_loss_mean
                                 qv_td1_loss_mean = qvalue_loss.qv_td1_loss_mean
+                                if cfg.full_state_checkpoints and not torch.isfinite(qv_lbd_loss_mean).item():
+                                    raise FloatingPointError("Non-finite Critic loss")
 
                             with diagnostics.scope("vrpo.critic.zero_grad"):
                                 critic_optimizer.zero_grad()
@@ -240,7 +270,8 @@ class VRPOTrainer(AlgorithmTrainer):
                                 qv_lbd_loss_mean.backward()
 
                             with diagnostics.scope("vrpo.critic.grad_clip"):
-                                nn.utils.clip_grad_norm_(critic_model_base.parameters(), cfg.optimizer.grad_max_norm)
+                                nn.utils.clip_grad_norm_(critic_model_base.parameters(), cfg.optimizer.grad_max_norm,
+                                                         error_if_nonfinite=cfg.full_state_checkpoints)
 
                             if is_first_critic and log_param_stats:
                                 with diagnostics.scope("vrpo.critic.param_stats"):
@@ -248,6 +279,8 @@ class VRPOTrainer(AlgorithmTrainer):
 
                             with diagnostics.scope("vrpo.critic.optimizer"):
                                 critic_optimizer.step()
+                                if cfg.full_state_checkpoints:
+                                    state["critic_optimizer_steps"] += 1
 
                             if is_first_critic or is_last_critic:
                                 with diagnostics.scope("vrpo.critic.metrics"):
@@ -286,10 +319,32 @@ class VRPOTrainer(AlgorithmTrainer):
                         collect_batch = None
                         runtime.log_metrics()
                         runtime.progress_bar_step()
-                        if runtime.checkpoint_due():
+                        stop_path = os.environ.get("MARVEL_STOP_AFTER_BOUNDARY")
+                        stop_requested = bool(cfg.full_state_checkpoints and stop_path and Path(stop_path).is_file())
+                        if runtime.checkpoint_due() or stop_requested:
                             runtime.save_checkpoint(state)
                         if runtime.evaluation_due():
                             runtime.evaluate(agent_policy = agent_model_merged)
+                        if cfg.full_state_checkpoints:
+                            if runtime.device.type == "cuda":
+                                torch.cuda.synchronize()
+                            record = {
+                                "iteration": iteration, "iteration_wall_seconds_including_checkpoint_wait": time.monotonic()-iteration_started,
+                                "consumed_trajectories": cfg.collect_batch_size*iteration,
+                                "native_env_steps": runtime.sampler.total_env_steps,
+                                "valid_game_steps": runtime.sampler.total_game_steps,
+                                "completed_games": runtime.sampler.total_completed_games,
+                                "commit_leftovers": runtime.sampler.commit_buffer_size,
+                                "actor_optimizer_steps": state["actor_optimizer_steps"],
+                                "critic_optimizer_steps": state["critic_optimizer_steps"],
+                                "ema_updates": agent_model_merge_updater.update_count,
+                                "replay_size": len(replay_buffer), "replay_ptr": replay_buffer._ptr,
+                            }
+                            with (Path(cfg.logging_dir)/"iterations.jsonl").open("a") as stream:
+                                stream.write(json.dumps(record, allow_nan=False)+"\n")
+                        if stop_requested:
+                            print(f"[FullState] stopped at complete iteration {iteration}", flush=True)
+                            break
 
 
 def run(cfg) -> None:

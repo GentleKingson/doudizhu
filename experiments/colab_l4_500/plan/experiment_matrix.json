@@ -1,0 +1,993 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "execution_plan_metadata_only",
+  "plan_id": "l4-vrpo-500-20261018-v1",
+  "created_date": "2026-10-18",
+  "timezone": "Etc/UTC",
+  "status": "PROPOSAL_PENDING_IMPLEMENTATION_AND_VALIDATION",
+  "training_ready": false,
+  "directly_loadable_by_existing_training_cli": false,
+  "source": {
+    "repository": "https://github.com/GentleKingson/doudizhu",
+    "audited_source_sha": "ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a",
+    "upstream_repository": "https://github.com/AtaraxosAI/doudizhu",
+    "audited_upstream_sha": "acdcf199cf422e2b683cb22142b8e7cb33b14460",
+    "execution_sha": null
+  },
+  "scope_zh": "12 个独立 L4 单 GPU 参数实验的计划元数据。此 JSON 不是已实现的训练器配置接口，也不表示已完成训练或补丁验收。",
+  "configuration_merge_rule": "deep_merge(common_training_config, candidate.overrides), then set seed from logical_job",
+  "common_training_config": {
+    "algo_name": "vrpo",
+    "game_name": "doudizhu",
+    "device": "cuda",
+    "total_iterations": 500,
+    "rollout_batch_size": 128,
+    "mini_batches": 4,
+    "use_compile": false,
+    "discount_gamma": 1.0,
+    "agent_merging_beta": 0.999,
+    "lr_stable_iterations": 5000,
+    "reg_stable_iterations": 500,
+    "ppo": {
+      "base_lr": 0.0004,
+      "agent_epoch": 4,
+      "gae_lambda": 0.95,
+      "base_clip_coef": 0.02,
+      "base_reg_coef": 0.1
+    },
+    "vrpo": {
+      "base_lr": 0.0004,
+      "gae_lambda": 0.95,
+      "replay_buffer_device": "cpu"
+    },
+    "optimizer": {
+      "use_muon": true,
+      "adam_beta1": 0.9,
+      "adam_beta2": 0.999,
+      "muon_beta1": 0.95,
+      "weight_decay": 0.01,
+      "grad_max_norm": 1.0
+    },
+    "model": {
+      "architecture": "v1.3",
+      "history_dim": 128,
+      "feature_dim": 256,
+      "decoder_layers": 4,
+      "decoder_heads": 4,
+      "state_layers": 3,
+      "action_layers": 2,
+      "fuse_layers": 2
+    },
+    "schedule": {
+      "agent_lr_decay_power": 1.0,
+      "critic_lr_decay_power": 0.5,
+      "clip_coef_decay_power": 1.0,
+      "reg_coef_decay_power": 0.5
+    },
+    "checkpoint_interval": 250,
+    "evaluation_interval": -1,
+    "param_stats_interval": -1
+  },
+  "common_runtime_policy": {
+    "target_gpu_name": "NVIDIA L4",
+    "gpus_per_runtime": 1,
+    "concurrent_training_jobs_per_runtime": 1,
+    "world_size": 1,
+    "precision": "FP32 model and optimizer state with TF32 enabled",
+    "autocast_enabled": false,
+    "execution_mode": "eager",
+    "tf32_api_family": "existing_legacy_family_only_until_unified_patch_is_verified",
+    "effective_cpu_thread_count": null,
+    "effective_interop_thread_count": null,
+    "replay_storage": "cpu",
+    "local_work_root_pattern": "/content/doudizhu-work/{plan_id}/{candidate_id}/s{training_seed}/{attempt_id}",
+    "drive_root": "/content/drive/MyDrive/doudizhu",
+    "drive_attempt_root_pattern": "/content/drive/MyDrive/doudizhu/{plan_id}/runs/{candidate_id}/s{training_seed}/{attempt_id}",
+    "shared_checkpoint_writes_allowed": false,
+    "training_time_measurement": "job-level retained training path, aggregate all-attempt runtime cost, and separately iterations 101-500; attempt records describe only their own interval",
+    "drive_campaign_root_pattern": "/content/drive/MyDrive/doudizhu/{plan_id}",
+    "initialization_pairing": "same initial Actor/Critic tensor hashes across candidates within one training seed; do not require equal hashes between seeds 17, 29 and 43"
+  },
+  "candidates": [
+    {
+      "candidate_id": "A0",
+      "description_zh": "保留论文核心算法的 L4 改配基线；不称为论文复现",
+      "reference_candidate": null,
+      "declared_changed_fields_vs_A0": [],
+      "overrides": {
+        "collect_batch_size": 128,
+        "replay_buffer_scale": 64,
+        "vrpo": {
+          "aux_epoch": 4
+        }
+      },
+      "training_seeds": [
+        17,
+        29,
+        43
+      ],
+      "expected_consumed_complete_trajectories_per_seed": 64000,
+      "replay_capacity_trajectories_single_gpu": 8192,
+      "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+      "replay_tensor_payload_gib_at_full_capacity": 3.71636962890625,
+      "resource_admission_required_before_training": true,
+      "training_ready": false
+    },
+    {
+      "candidate_id": "A1",
+      "description_zh": "相对 A0 仅 replay_buffer_scale 从 64 改为 32",
+      "reference_candidate": "A0",
+      "declared_changed_fields_vs_A0": [
+        "replay_buffer_scale"
+      ],
+      "overrides": {
+        "collect_batch_size": 128,
+        "replay_buffer_scale": 32,
+        "vrpo": {
+          "aux_epoch": 4
+        }
+      },
+      "training_seeds": [
+        17,
+        29,
+        43
+      ],
+      "expected_consumed_complete_trajectories_per_seed": 64000,
+      "replay_capacity_trajectories_single_gpu": 4096,
+      "replay_tensor_payload_bytes_at_full_capacity": 1995210752,
+      "replay_tensor_payload_gib_at_full_capacity": 1.858184814453125,
+      "resource_admission_required_before_training": true,
+      "training_ready": false
+    },
+    {
+      "candidate_id": "A2",
+      "description_zh": "相对 A0 仅 critic aux_epoch 从 4 改为 2",
+      "reference_candidate": "A0",
+      "declared_changed_fields_vs_A0": [
+        "vrpo.aux_epoch"
+      ],
+      "overrides": {
+        "collect_batch_size": 128,
+        "replay_buffer_scale": 64,
+        "vrpo": {
+          "aux_epoch": 2
+        }
+      },
+      "training_seeds": [
+        17,
+        29,
+        43
+      ],
+      "expected_consumed_complete_trajectories_per_seed": 64000,
+      "replay_capacity_trajectories_single_gpu": 8192,
+      "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+      "replay_tensor_payload_gib_at_full_capacity": 3.71636962890625,
+      "resource_admission_required_before_training": true,
+      "training_ready": false
+    },
+    {
+      "candidate_id": "A3",
+      "description_zh": "相对 A0 仅 collect_batch_size 从 128 改为 256；先检查 RAM 准入",
+      "reference_candidate": "A0",
+      "declared_changed_fields_vs_A0": [
+        "collect_batch_size"
+      ],
+      "overrides": {
+        "collect_batch_size": 256,
+        "replay_buffer_scale": 64,
+        "vrpo": {
+          "aux_epoch": 4
+        }
+      },
+      "training_seeds": [
+        17,
+        29,
+        43
+      ],
+      "expected_consumed_complete_trajectories_per_seed": 128000,
+      "replay_capacity_trajectories_single_gpu": 16384,
+      "replay_tensor_payload_bytes_at_full_capacity": 7980843008,
+      "replay_tensor_payload_gib_at_full_capacity": 7.4327392578125,
+      "resource_admission_required_before_training": true,
+      "training_ready": false
+    }
+  ],
+  "queue": {
+    "scheduling_policy": "seed_major_job_inventory; static attempt assignments rotate candidates across comparable resource strata when feasible",
+    "guaranteed_parallel_runtime_count": null,
+    "attempt_id_policy": "generate a fresh UUID for every attempt; null in this proposal; never share an attempt directory",
+    "retry_policy": "a retry remains the same logical job and training seed; it is not an independent training replicate",
+    "ledger_write_policy": "one coordinator writes the aggregate ledger; workers write only their own attempt artifacts",
+    "jobs": [
+      {
+        "logical_job_id": "l4-vrpo500-A0-s17",
+        "candidate_id": "A0",
+        "training_seed": 17,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A1-s17",
+        "candidate_id": "A1",
+        "training_seed": 17,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 1995210752,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A2-s17",
+        "candidate_id": "A2",
+        "training_seed": 17,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A3-s17",
+        "candidate_id": "A3",
+        "training_seed": 17,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 128000,
+        "replay_tensor_payload_bytes_at_full_capacity": 7980843008,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A0-s29",
+        "candidate_id": "A0",
+        "training_seed": 29,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A1-s29",
+        "candidate_id": "A1",
+        "training_seed": 29,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 1995210752,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A2-s29",
+        "candidate_id": "A2",
+        "training_seed": 29,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A3-s29",
+        "candidate_id": "A3",
+        "training_seed": 29,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 128000,
+        "replay_tensor_payload_bytes_at_full_capacity": 7980843008,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A0-s43",
+        "candidate_id": "A0",
+        "training_seed": 43,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A1-s43",
+        "candidate_id": "A1",
+        "training_seed": 43,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 1995210752,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A2-s43",
+        "candidate_id": "A2",
+        "training_seed": 43,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 64000,
+        "replay_tensor_payload_bytes_at_full_capacity": 3990421504,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      },
+      {
+        "logical_job_id": "l4-vrpo500-A3-s43",
+        "candidate_id": "A3",
+        "training_seed": 43,
+        "status": "PLANNED",
+        "execution_sha": null,
+        "training_ready": false,
+        "attempt_id": null,
+        "runtime_assignment": null,
+        "iteration_target": 500,
+        "expected_consumed_complete_trajectories": 128000,
+        "replay_tensor_payload_bytes_at_full_capacity": 7980843008,
+        "checkpoint_contract_id": "doudizhu-full-state-journal-v1",
+        "assignment_manifest_ref": null,
+        "effective_config_sha256": null,
+        "resource_stratum_id": null,
+        "initial_actor_tensor_sha256": null,
+        "initial_critic_tensor_sha256": null
+      }
+    ],
+    "available_independent_l4_runtimes_K": null,
+    "K_observed_at_execution_time": true,
+    "fallback_if_K_is_one": "execute the same jobs serially",
+    "parallel_runtime_symbol": "K; M is reserved for mini_batches",
+    "assignment_manifest": "a coordinator creates immutable assignments for the actually available K runtimes; the jobs list does not bind a job permanently to a slot",
+    "resource_ineligible_status": "NOT_FEASIBLE"
+  },
+  "evaluation_proposal": {
+    "status": "PROPOSAL_NOT_EXECUTED",
+    "count_unit": "deal_blocks per training_seed, checkpoint and opponent",
+    "roles_per_deal_block": [
+      "candidate_landlord_vs_opponent_peasant_team",
+      "opponent_landlord_vs_candidate_peasant_team"
+    ],
+    "actual_games_per_deal_block": 2,
+    "farmer_team_uses_candidate_in_both_seats": true,
+    "two_farmer_seats_are_not_independent_samples": true,
+    "primary_training_replicate_unit": "training seed; n=3 per candidate",
+    "paired_evaluation_unit": "deal block; the two role-swapped games remain in one block",
+    "independent_evaluation_seed_namespace_required": true,
+    "pair_same_deals_across_candidates_within_training_seed": true,
+    "distinct_holdout_deals_from_monitoring_and_screening_required": true,
+    "holdout_used_for_retuning": false,
+    "opponents": [
+      {
+        "slot": "screening_anchor",
+        "artifact_path": null,
+        "sha256": null,
+        "frozen": false,
+        "proposed_name": "PerfectDou",
+        "actual_name": null,
+        "fallback_policy": {
+          "proposed_fallback": "a frozen MARVEL opponent that passes inference and evaluator integration checks",
+          "must_freeze_before_any_formal_training": true,
+          "must_freeze_code_model_arguments_and_environment_hashes": true,
+          "no_post_result_opponent_switching": true,
+          "fallback_selected": null
+        }
+      },
+      {
+        "slot": "holdout_primary",
+        "artifact_path": null,
+        "sha256": null,
+        "frozen": false,
+        "proposed_name": "PerfectDou",
+        "actual_name": null,
+        "fallback_policy": {
+          "proposed_fallback": "a frozen MARVEL opponent that passes inference and evaluator integration checks",
+          "must_freeze_before_any_formal_training": true,
+          "must_freeze_code_model_arguments_and_environment_hashes": true,
+          "no_post_result_opponent_switching": true,
+          "fallback_selected": null
+        }
+      },
+      {
+        "slot": "holdout_secondary",
+        "artifact_path": null,
+        "sha256": null,
+        "frozen": false,
+        "proposed_name": "DouZero",
+        "actual_name": null,
+        "fallback_policy": {
+          "proposed_fallback": "a frozen MARVEL opponent that passes inference and evaluator integration checks",
+          "must_freeze_before_any_formal_training": true,
+          "must_freeze_code_model_arguments_and_environment_hashes": true,
+          "no_post_result_opponent_switching": true,
+          "fallback_selected": null
+        }
+      }
+    ],
+    "deal_registry_path": null,
+    "deal_registry_sha256": null,
+    "stages": [
+      {
+        "stage_id": "monitor_250",
+        "purpose": "monitoring_only",
+        "candidate_ids": [
+          "A0",
+          "A1",
+          "A2",
+          "A3"
+        ],
+        "training_seeds": [
+          17,
+          29,
+          43
+        ],
+        "checkpoint_iteration": 250,
+        "opponent_slot": "screening_anchor",
+        "deal_set_id_pattern": "monitor-250-shared-v1",
+        "evaluation_jobs": 12,
+        "deal_blocks_per_seed_checkpoint_opponent": 1000,
+        "actual_games_per_deal_block": 2,
+        "total_deal_blocks": 12000,
+        "total_actual_games": 24000,
+        "eligible_for_final_selection": false,
+        "shared_across_training_seeds": true
+      },
+      {
+        "stage_id": "screen_500",
+        "purpose": "parameter_screening_at_500_iterations",
+        "candidate_ids": [
+          "A0",
+          "A1",
+          "A2",
+          "A3"
+        ],
+        "training_seeds": [
+          17,
+          29,
+          43
+        ],
+        "checkpoint_iteration": 500,
+        "opponent_slot": "screening_anchor",
+        "deal_set_id_pattern": "development-500-shared-v1",
+        "evaluation_jobs": 12,
+        "deal_blocks_per_seed_checkpoint_opponent": 5000,
+        "actual_games_per_deal_block": 2,
+        "total_deal_blocks": 60000,
+        "total_actual_games": 120000,
+        "eligible_for_final_selection": true,
+        "shared_across_training_seeds": true
+      },
+      {
+        "stage_id": "A3_250_bridge",
+        "purpose": "equal_consumed_training_trajectory_bridge_against_A0_A1_A2_at_500",
+        "candidate_ids": [
+          "A3"
+        ],
+        "training_seeds": [
+          17,
+          29,
+          43
+        ],
+        "checkpoint_iteration": 250,
+        "opponent_slot": "screening_anchor",
+        "deal_set_id_pattern": "development-500-shared-v1",
+        "evaluation_jobs": 3,
+        "deal_blocks_per_seed_checkpoint_opponent": 5000,
+        "actual_games_per_deal_block": 2,
+        "total_deal_blocks": 15000,
+        "total_actual_games": 30000,
+        "consumed_training_trajectories_at_checkpoint": 64000,
+        "reuse_monitor_250_results": false,
+        "notes_zh": "单独执行30,000对局，不复用监控结果。与全部候选/三个训练seed的500轮development使用同一冻结牌集。",
+        "shared_across_training_seeds": true
+      },
+      {
+        "stage_id": "holdout_primary",
+        "purpose": "post_selection_confirmation",
+        "candidate_slots": [
+          "A0",
+          "selected_candidate_if_distinct_from_A0"
+        ],
+        "training_seeds": [
+          17,
+          29,
+          43
+        ],
+        "checkpoint_iteration": 500,
+        "opponent_slot": "holdout_primary",
+        "deal_set_id_pattern": "holdout-primary-shared-v1",
+        "budget_assumes_selected_candidate_is_distinct_from_A0": true,
+        "evaluation_jobs_budget": 6,
+        "deal_blocks_per_seed_checkpoint_opponent": 10000,
+        "actual_games_per_deal_block": 2,
+        "total_deal_blocks_budget": 60000,
+        "total_actual_games_budget": 120000,
+        "shared_across_training_seeds": true
+      },
+      {
+        "stage_id": "holdout_secondary",
+        "purpose": "post_selection_secondary_opponent_confirmation",
+        "candidate_slots": [
+          "A0",
+          "selected_candidate_if_distinct_from_A0"
+        ],
+        "training_seeds": [
+          17,
+          29,
+          43
+        ],
+        "checkpoint_iteration": 500,
+        "opponent_slot": "holdout_secondary",
+        "deal_set_id_pattern": "holdout-secondary-shared-v1",
+        "budget_assumes_selected_candidate_is_distinct_from_A0": true,
+        "evaluation_jobs_budget": 6,
+        "deal_blocks_per_seed_checkpoint_opponent": 5000,
+        "actual_games_per_deal_block": 2,
+        "total_deal_blocks_budget": 30000,
+        "total_actual_games_budget": 60000,
+        "shared_across_training_seeds": true
+      }
+    ],
+    "current_actor_diagnostic_included_in_budget": false,
+    "selected_candidate_id": null,
+    "shared_phase_dealset_across_all_candidates_and_all_training_seeds": true,
+    "count_unit_note": "counts are model-checkpoint-opponent deal-block executions; sharing a deal across models/seeds does not make it a new independent unique deal",
+    "analysis_proposal": {
+      "primary_policy": "EMA actor; current actor diagnostic separately budgeted",
+      "main_metric": "equal-weight mean of landlord win rate and candidate peasant-team win rate",
+      "bootstrap_replicates": 10000,
+      "analysis_seed": null,
+      "method": "within each shared deal block, pair both roles and candidate/A0 within each training seed; average the three seed-specific paired differences equally, then resample whole shared deal blocks",
+      "confidence_level": 0.95,
+      "interval_scope": "deal uncertainty conditional on the three already-trained models; not a population confidence interval over training seeds",
+      "report_each_training_seed_difference_and_range": true,
+      "training_seed_count": 3,
+      "seed_is_not_tuned_on_evaluation_results": true,
+      "default_continuation_training_seed": 29
+    },
+    "unique_dealsets_proposal": [
+      {
+        "deal_set_id": "monitor-250-shared-v1",
+        "unique_deal_blocks": 1000,
+        "sha256": null
+      },
+      {
+        "deal_set_id": "development-500-shared-v1",
+        "unique_deal_blocks": 5000,
+        "sha256": null
+      },
+      {
+        "deal_set_id": "holdout-primary-shared-v1",
+        "unique_deal_blocks": 10000,
+        "sha256": null
+      },
+      {
+        "deal_set_id": "holdout-secondary-shared-v1",
+        "unique_deal_blocks": 5000,
+        "sha256": null
+      }
+    ],
+    "unique_dealblocks_across_disjoint_sets_proposed": 21000,
+    "holdout_opponents_must_be_distinct_frozen_policies": true,
+    "missing_secondary_opponent_outcome": "SECONDARY_CONFIRMATION_INCOMPLETE; do not claim both-opponent confirmation"
+  },
+  "budgets": {
+    "budget_type": "planned_work_counts_not_runtime_or_cost_measurements",
+    "training_jobs": 12,
+    "training_seeds_per_candidate": 3,
+    "iterations_per_training_job": 500,
+    "total_training_iterations": 6000,
+    "total_consumed_complete_training_trajectories": 960000,
+    "training_trajectories_by_candidate": {
+      "A0": 192000,
+      "A1": 192000,
+      "A2": 192000,
+      "A3": 384000
+    },
+    "training_count_excludes": [
+      "smoke tests",
+      "system microbenchmarks",
+      "evaluation games",
+      "unfinished environment trajectories",
+      "completed trajectories still in sampler buffers",
+      "work repeated after runtime interruption"
+    ],
+    "evaluation_deal_blocks_budget": 177000,
+    "evaluation_actual_games_budget": 354000,
+    "evaluation_actual_games_if_selected_candidate_is_A0": 264000,
+    "evaluation_games_saved_if_selected_candidate_is_A0": 90000,
+    "evaluation_monitor_bridge_result_reuse": false,
+    "extra_current_actor_diagnostic_games": null,
+    "measured_l4_seconds_per_iteration": null,
+    "measured_colab_cu_per_hour": null,
+    "estimated_total_gpu_hours": null,
+    "estimated_total_cu": null,
+    "replay_storage_estimate": {
+      "method": "static tensor payload arithmetic from audited buffer layout, FP32 floating fields, single GPU",
+      "bytes_per_trajectory": 487112,
+      "payload_bytes_in_one_full_capacity_snapshot_per_logical_job_summed_over_12_jobs": 53870690304,
+      "payload_gib_in_one_full_capacity_snapshot_per_logical_job_summed_over_12_jobs": 50.170989990234375,
+      "payload_bytes_in_two_full_capacity_generations_for_all_12_jobs": 107741380608,
+      "payload_gib_in_two_full_capacity_generations_for_all_12_jobs": 100.34197998046875,
+      "two_generation_number_is_a_storage_scenario_not_an_unconditional_retention_requirement": true,
+      "compression_ratio_assumed": null,
+      "excludes": [
+        "model and optimizer states",
+        "sampler and environment state",
+        "RNG state",
+        "metadata and archive overhead",
+        "logs and evaluation records",
+        "temporary upload copies"
+      ],
+      "two_full_capacity_saves_at_250_and_500_upload_scenario_bytes": 107741380608,
+      "two_full_capacity_saves_at_250_and_500_upload_scenario_gib": 100.34197998046875,
+      "scenario_is_an_upload_upper_bound": false,
+      "additional_wallclock_snapshot_upload_bytes": null,
+      "total_actual_upload_bytes": null,
+      "upload_notes_zh": "250/500两次满容量、未压缩replay传输场景约100.342GiB。额外900秒触发、重传及其他状态另加；不是总上传上限，也不等于所有时刻的远端存量。"
+    }
+  },
+  "readiness_requirements": [
+    "execution_sha is frozen after the required full-resume patches are verified",
+    "pre-training full-state acceptance tests pass for the declared restoration contract; the 500-to-501 handoff test is a later post-training gate",
+    "all candidate configurations are resolved and validated against the implemented training interface",
+    "effective CPU thread settings and FP32/TF32 settings are verified and recorded",
+    "RAM and VRAM admission passes on the assigned actual L4 runtime",
+    "opponent artifacts, evaluation deal sets, environment lock and their hashes are frozen",
+    "a unique attempt_id and exclusive per-attempt output directory are created",
+    "full-capacity CPU serialization/readback fixture passes without cloning the entire replay; fixture is not training/compression evidence",
+    "periodic and wallclock checkpoint semantics, timing fields, resource denominators and assignment manifest are frozen"
+  ],
+  "notes_zh": [
+    "A0 是保留论文核心算法的 L4 改配基线，不是论文复现。",
+    "A1、A2、A3 分别相对 A0 只改一个声明字段；改变 collect 会联动样本量、replay 条数与 minibatch 大小，这些是已声明的结果。",
+    "每个候选必须完成每 seed 的 500 轮；监控或 bridge 不替代 500 轮筛选。",
+    "A3@250 与 A0/A1/A2@500 各消费 64,000 条完整训练轨迹；这一桥接比较不能替代统一 500 轮及长期牌力验证。",
+    "12 个逻辑 job 不表示可同时申请 12 个 L4；并行度按账户实际获配 K 运行时调整。",
+    "354,000 评估对局按入选候选不同于 A0 保守编列；A0 自身入选时不重复其 holdout。",
+    "所有结果、时长、费用及 execution_sha 当前均未实测或未生成；training_ready 必须保持 false，直到验收完成。",
+    "并行独立runtime数使用K，M只表示逻辑mini_batches。21,000个唯一共享deal跨模型重复执行，合计177,000次deal-block评估执行/354,000实际对局；不可把重复执行当作独立唯一牌。"
+  ],
+  "checkpoint_contract": {
+    "contract_id": "doudizhu-full-state-journal-v1",
+    "artifact_path": "checkpoint_contract.json",
+    "sha256": "314b21ddf6f4c6e38378b0127d6a68e1f7a57a656b0709565227efa4b6ef676f",
+    "status": "PROPOSAL_NOT_IMPLEMENTED"
+  },
+  "checkpoint_policy": {
+    "status": "PROPOSED_NOT_IMPLEMENTED",
+    "periodic_iterations": 250,
+    "wallclock_trigger_seconds": 900,
+    "final_iteration": 500,
+    "force_final_snapshot": true,
+    "trigger_combination": "any due condition; coalesce conditions for the same completed iteration",
+    "safe_boundary": "after an entire iteration, including Actor/Critic optimizer steps and EMA update, has completed; before the next iteration mutates state",
+    "wallclock_reference": "monotonic elapsed time since the last complete local checkpoint capture, or this attempt training start before the first capture",
+    "wallclock_due_action": "set a due flag and capture at the next completed iteration boundary; do not interrupt an optimizer update or capture a partially updated state",
+    "no_new_progress_no_duplicate_capture": true,
+    "no_remote_rpo_bound_promised": true,
+    "rpo_note_zh": "900秒是保存触发阈值，非远端最多丢失900秒的承诺。实际恢复损失从最近已远端验证快照算起，还受当前迭代、保存、上传、校验和重试时间影响。",
+    "existing_cli_periodic_field": "checkpoint_interval",
+    "existing_cli_supports_wallclock_trigger": false,
+    "shared_policy_frozen_before_main_matrix": true,
+    "final_iteration_scope": "500 is the main-screening target in this plan; a later continuation forces a final snapshot at its actual resolved total_iterations target"
+  },
+  "resource_admission_proposal": {
+    "status": "PROPOSED_ENGINEERING_GATES_NOT_MEASUREMENTS",
+    "required_per_candidate_and_resource_stratum": true,
+    "functional_smoke_iterations_range": [
+      2,
+      5
+    ],
+    "full_capacity_serialization_fixture": {
+      "required": true,
+      "device": "cpu",
+      "allowed_fixture": "fill a preallocated replay with repeated genuine trajectories in bounded chunks solely to exercise full-capacity serialization and readback",
+      "counts_as_training_evidence": false,
+      "counts_toward_main_training_budget": false,
+      "whole_replay_clone_or_deepcopy_allowed": false,
+      "measure_peak_ram_and_local_disk_and_remote_transfer": true,
+      "record_fixture_construction_and_compression_bias": true,
+      "compression_note_zh": "重复轨迹fixture只用于验证满容量内存/序列化流程，其压缩比和传输时间不得冒充真实replay的数据压缩或吞吐。",
+      "capture_and_restore_peak_memory_must_both_pass": true,
+      "loader_must_not_materialize_then_copy_entire_replay": true,
+      "serialized_shard_must_not_include_entire_shared_backing_storage": true
+    },
+    "actual_filled_replay_validation": {
+      "required": true,
+      "minimum_completed_iterations_formula": "completed_iteration >= replay_buffer_scale S",
+      "require_replay_size_equals_capacity": true,
+      "require_real_data_snapshot_readback": true,
+      "smoke_of_2_to_5_iterations_is_not_steady_state_evidence": true,
+      "default_later_throughput_window": {
+        "first_iteration": 101,
+        "last_iteration": 500
+      },
+      "evidence_phase": "after real replay fills; a main run may provide this evidence, with further execution paused if its gate fails",
+      "if_separate_pretest": "use a separate pretest identity; exclude its trajectories and timings from the 12 main run results",
+      "gate_phase": "post_start",
+      "failure_action": "pause further training until the recorded failure is resolved and revalidated"
+    },
+    "memory_margin_proposal": {
+      "classification": "engineering rule to freeze before execution; not NVIDIA or Google guarantee",
+      "gpu_min_headroom_fraction_of_initial_free_bytes": 0.15,
+      "gpu_denominator": "device free bytes after CUDA context initialization but before allocating training objects",
+      "gpu_test": "minimum observed device free bytes across training/save/load must be at least 0.15 times the recorded initial free bytes; also retain PyTorch peak allocated and reserved metrics separately",
+      "torch_peak_allocated_plus_reserved_is_invalid": true,
+      "gpu_sampling_limit": "device-used samples may miss short transients; record sampling period and corroborate allocator peaks and successful stress paths",
+      "cpu_min_memavailable_fraction_of_system_ram_total_bytes": 0.2,
+      "cpu_denominator": "actual system MemTotal, not a single process RSS",
+      "cpu_window": "include training, full-capacity snapshot capture, upload, and fresh-process readback/load",
+      "forbid_oom_nonfinite_illegal_actions_and_sustained_swap_thrashing": true,
+      "local_disk_and_drive_free_capacity_must_cover_measured_files_and_temporaries": true
+    },
+    "failure_status": "NOT_FEASIBLE",
+    "A3_requires_prior_RAM_admission": true,
+    "no_automatic_candidate_parameter_change_after_failure": true,
+    "A0_failure_blocks_main_matrix": true
+  },
+  "measurement_policy": {
+    "attempt_scope": "measure only this attempt start/end iteration range and its wall time; do not label a resumed 250-to-500 attempt a complete 500-iteration run",
+    "retained_training_path_seconds": "job-level aggregate of recorded training intervals contributing to the final verified 0-to-500 state lineage, including initialization and snapshot/logging overhead on that lineage; excludes discarded repeated training; if unobservable, leave null and explain",
+    "total_runtime_seconds_all_attempts": "job-level sum of all allocated runtime intervals attributed to the job across successful/failed/retried attempts, including initialization/build, training, capture/upload, waiting and restoration/replay; independent evaluation is tagged as a separate resource category unless explicitly attributed",
+    "additive_cost_rule": "training-attempt wall totals already contain their capture/upload/logging subintervals; never add those subintervals again; sum non-overlapping runtime allocation intervals for actual cost",
+    "later_throughput_window": "iterations 101-500; report gross window and any explicitly excluded checkpoint/transfer intervals separately",
+    "campaign_cost": "sum all non-overlapping billed runtime intervals, including independent evaluation, installation, idle time, retries and validation; shared setup overhead uses one declared attribution rule",
+    "cost_comparison": "use total actual resource cost and report interruption/retry effects separately; do not select a candidate as faster by counting only its final partial resume attempt"
+  },
+  "post_start_acceptance_requirements": [
+    {
+      "requirement_id": "first_real_filled_replay_snapshot",
+      "gate_phase": "after_main_run_starts",
+      "due_condition": "first real-data replay reaches size == capacity at completed_iteration >= S",
+      "required_action": "validate a real-data full replay snapshot capture and readback with bounded memory; record actual snapshot size, compression and timing",
+      "failure_action": "pause further training and mark the attempt failed or NOT_FEASIBLE according to the recorded cause; do not silently change scientific parameters",
+      "before_start_requirement_instead": "2-5 iteration functional smoke plus full-capacity CPU I/O fixture can establish initial admission; their repeated-data compression is not real replay evidence",
+      "status": "NOT_RUN",
+      "passed": null,
+      "evidence_artifact_ref": null
+    }
+  ],
+  "selection_rules": {
+    "status": "PROPOSAL_NOT_EVALUATED",
+    "classification": "pre-registered engineering choices, not paper or hardware guarantees",
+    "baseline_candidate_id": "A0",
+    "training_seeds": [
+      17,
+      29,
+      43
+    ],
+    "continuation_seed_predeclared": 29,
+    "main_screening_checkpoint_iteration": 500,
+    "resource_efficiency_route": {
+      "primary_metric": "total_runtime_seconds_all_attempts",
+      "aggregation": "sum across the three training seeds after declaring comparable resource strata and allocating shared overhead once",
+      "fractional_reduction_formula": "1 - candidate_total_runtime_seconds_all_attempts / A0_total_runtime_seconds_all_attempts",
+      "minimum_fractional_reduction": 0.1,
+      "comparison_operator": ">=",
+      "include_checkpoint_upload_waiting_retry_and_repeated_work_per_measurement_policy": true,
+      "require_later_throughput_improvement_direction_consistent": true,
+      "report_actual_CU_separately_without_assuming_a_constant_CU_rate": true,
+      "candidate_measured_seconds": null,
+      "baseline_measured_seconds": null,
+      "measured_fractional_reduction": null,
+      "measured_outcome": null
+    },
+    "development": {
+      "stage_id": "screen_500",
+      "opponent_slot": "screening_anchor",
+      "require_all_three_metric_gates_PASS": true,
+      "metric_gates": [
+        {
+          "metric": "role_average_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.02
+        },
+        {
+          "metric": "landlord_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.03
+        },
+        {
+          "metric": "peasant_team_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.03
+        }
+      ],
+      "confidence_interval_rule": {
+        "difference_direction": "candidate minus A0; positive favors candidate",
+        "difference_units": "probability fraction; 0.02 = 2 percentage points",
+        "confidence_level": 0.95,
+        "interval_scope": "paired deal uncertainty conditional on the three trained models; not training-seed population uncertainty",
+        "valid_interval_required": "lower <= upper",
+        "PASS": {
+          "left_operand": "ci_lower",
+          "operator": ">",
+          "right_operand": "-noninferiority_margin_fraction"
+        },
+        "FAIL": {
+          "left_operand": "ci_upper",
+          "operator": "<",
+          "right_operand": "-noninferiority_margin_fraction"
+        },
+        "INCONCLUSIVE": "all other cases, including equality at a margin or absent valid measurement",
+        "measured_ci_lower": null,
+        "measured_ci_upper": null,
+        "measured_outcome": null
+      },
+      "purpose": "select one candidate identity before holdout results are opened",
+      "selected_candidate_id": null
+    },
+    "holdout": {
+      "opponent_slots": [
+        "holdout_primary",
+        "holdout_secondary"
+      ],
+      "apply_same_metric_gates_to_each_opponent_separately": true,
+      "metric_gates": [
+        {
+          "metric": "role_average_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.02
+        },
+        {
+          "metric": "landlord_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.03
+        },
+        {
+          "metric": "peasant_team_win_rate_difference_vs_A0",
+          "noninferiority_margin_fraction": 0.03
+        }
+      ],
+      "confidence_interval_rule": {
+        "difference_direction": "candidate minus A0; positive favors candidate",
+        "difference_units": "probability fraction; 0.02 = 2 percentage points",
+        "confidence_level": 0.95,
+        "interval_scope": "paired deal uncertainty conditional on the three trained models; not training-seed population uncertainty",
+        "valid_interval_required": "lower <= upper",
+        "PASS": {
+          "left_operand": "ci_lower",
+          "operator": ">",
+          "right_operand": "-noninferiority_margin_fraction"
+        },
+        "FAIL": {
+          "left_operand": "ci_upper",
+          "operator": "<",
+          "right_operand": "-noninferiority_margin_fraction"
+        },
+        "INCONCLUSIVE": "all other cases, including equality at a margin or absent valid measurement",
+        "measured_ci_lower": null,
+        "measured_ci_upper": null,
+        "measured_outcome": null
+      },
+      "require_each_opponent_and_each_metric_PASS": true,
+      "do_not_average_opponents_to_hide_regression": true,
+      "candidate_identity_locked_before_opening_holdout": true,
+      "maximum_selected_distinct_candidates_in_default_holdout_budget": 1,
+      "retune_or_select_another_candidate_on_same_holdout_after_failure": false,
+      "failure_or_inconclusive_outcomes": [
+        "RETAIN_BASELINE",
+        "EARLY_INCONCLUSIVE"
+      ],
+      "measured_primary_outcome": null,
+      "measured_secondary_outcome": null
+    },
+    "A3_equal_data_gate": {
+      "required": true,
+      "candidate_checkpoint": {
+        "candidate_id": "A3",
+        "completed_iteration": 250,
+        "consumed_training_trajectories": 64000
+      },
+      "baseline_checkpoint": {
+        "candidate_id": "A0",
+        "completed_iteration": 500,
+        "consumed_training_trajectories": 64000
+      },
+      "evaluation_stage": "A3_250_bridge",
+      "shared_dealset_with_development": true,
+      "equal_optimizer_update_count_claimed": false,
+      "report_A3_500_different_data_budget_separately": true,
+      "do_not_claim_unqualified_efficiency_if_gain_is_only_from_double_data_or_actual_CU_worsens": true,
+      "measured_bridge_result": null
+    },
+    "outcome_policy": {
+      "pass_label": "EARLY_SELECTED_500",
+      "long_training_success_proven": false,
+      "holdout_failure_does_not_trigger_repeated_search_on_same_holdout": true,
+      "always_retain_A0_reference_and_default_seed29_restore_entry": true,
+      "selected_candidate_id": null,
+      "measured_decision": null
+    }
+  }
+}

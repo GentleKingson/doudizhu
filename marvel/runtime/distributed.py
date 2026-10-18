@@ -181,9 +181,12 @@ class DistributedRuntime:
         world_size = dist.get_world_size() if is_initialized else 1
         local_rank = env_local_rank if is_initialized else 0
 
-        # torchrun defaults OMP_NUM_THREADS=1; let rank0 use available cores for CPU-heavy routines.
-        omp_threads = int(os.environ.get("OMP_NUM_THREADS", "0") or 0)
-        if rank == 0 and omp_threads <= 1:
+        # Explicit values, including 1, are part of the execution configuration.
+        explicit_threads = os.environ.get("OMP_NUM_THREADS")
+        omp_threads = int(explicit_threads) if explicit_threads is not None else 0
+        if explicit_threads is not None and omp_threads <= 0:
+            raise ValueError("OMP_NUM_THREADS must be a positive integer.")
+        if rank == 0 and explicit_threads is None:
             omp_threads = cls._available_cpu_count()
             os.environ["OMP_NUM_THREADS"] = str(omp_threads)
         if omp_threads > 0:

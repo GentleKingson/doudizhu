@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import time
+from pathlib import Path
 from typing import Any, Mapping
 
 import torch
@@ -88,13 +90,25 @@ class CheckpointPolicy:
     def __init__(self, runtime: Any) -> None:
         self.runtime = runtime
         self.timer = IntervalTimer(runtime.cfg.checkpoint_interval, total_steps = runtime.cfg.total_iterations)
+        self.last_capture = time.monotonic()
+        self.last_iteration = 0
 
     def due(self, iteration: int) -> bool:
         """Check whether a checkpoint should be saved at this iteration."""
-        return self.runtime.is_primary and self.timer.triggered(iteration)
+        cfg = self.runtime.cfg
+        wallclock_due = (cfg.full_state_checkpoints and cfg.checkpoint_wallclock_seconds > 0
+                         and time.monotonic() - self.last_capture >= cfg.checkpoint_wallclock_seconds)
+        full_boundary_due = cfg.full_state_checkpoints and iteration in (cfg.replay_buffer_scale, cfg.total_iterations)
+        return (self.runtime.is_primary and iteration > self.last_iteration
+                and (self.timer.triggered(iteration) or wallclock_due or full_boundary_due))
 
     def save(self, state: CheckpointState) -> None:
+        if self.runtime.cfg.full_state_checkpoints:
+            from marvel.runtime.full_state import capture
+            capture(self.runtime, state, self.runtime.full_replay, self.runtime.full_ema)
         self.runtime.checkpoint_manager.save_from_state(state)
+        self.last_capture = time.monotonic()
+        self.last_iteration = state.iteration
 
 
 class TrainingWorkflow(RuntimeOrchestrator):
@@ -128,6 +142,12 @@ class TrainingWorkflow(RuntimeOrchestrator):
         self.resume_policy = ResumePolicy(self)
         self.checkpoint_policy = CheckpointPolicy(self)
         self.attach_sampler(self._make_sampler())
+        if cfg.full_state_checkpoints:
+            if self.world_size != 1 or cfg.algo_name != "vrpo" or cfg.use_compile:
+                raise ValueError("Full-state v1 requires single-process eager VRPO.")
+            from marvel.runtime.full_state import ActionJournal
+            self.sampler.action_journal = ActionJournal(
+                Path(cfg.logging_dir) / "journal", self.sampler._env_seed, self.sampler.rollout_batch_size)
         self._state: CheckpointState | None = None
 
     def _make_sampler(self) -> Sampler:

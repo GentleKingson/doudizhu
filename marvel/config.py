@@ -162,6 +162,8 @@ class TrainConfig:
 
     resume_from: str | None = None
     resume_optimizer: bool = True
+    full_state_checkpoints: bool = False
+    checkpoint_wallclock_seconds: float = 900.0
 
     total_iterations: int = 2000
     checkpoint_interval: int = 5000

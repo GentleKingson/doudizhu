@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "checkpoint_contract_plan_schema_not_loader_implementation",
+  "contract_id": "doudizhu-full-state-journal-v1",
+  "plan_id": "l4-vrpo-500-20261018-v1",
+  "created_date": "2026-10-18",
+  "timezone": "Etc/UTC",
+  "status": "PROPOSAL_PENDING_IMPLEMENTATION_AND_VALIDATION",
+  "training_ready": false,
+  "directly_loadable_by_existing_training_cli": false,
+  "source": {
+    "repository": "https://github.com/GentleKingson/doudizhu",
+    "audited_source_sha": "ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a",
+    "upstream_repository": "https://github.com/AtaraxosAI/doudizhu",
+    "audited_upstream_sha": "acdcf199cf422e2b683cb22142b8e7cb33b14460",
+    "execution_sha": null
+  },
+  "scope_zh": "此文件规定未来完整保存/恢复补丁、验证产物及Drive提交协议；它不是已实现的序列化器、CLI、模型checkpoint或已通过测试的证明。",
+  "checkpoint_policy": {
+    "status": "PROPOSED_NOT_IMPLEMENTED",
+    "periodic_iterations": 250,
+    "wallclock_trigger_seconds": 900,
+    "final_iteration": 500,
+    "force_final_snapshot": true,
+    "trigger_combination": "any due condition; coalesce conditions for the same completed iteration",
+    "safe_boundary": "after an entire iteration, including Actor/Critic optimizer steps and EMA update, has completed; before the next iteration mutates state",
+    "wallclock_reference": "monotonic elapsed time since the last complete local checkpoint capture, or this attempt training start before the first capture",
+    "wallclock_due_action": "set a due flag and capture at the next completed iteration boundary; do not interrupt an optimizer update or capture a partially updated state",
+    "no_new_progress_no_duplicate_capture": true,
+    "no_remote_rpo_bound_promised": true,
+    "rpo_note_zh": "900秒是保存触发阈值，非远端最多丢失900秒的承诺。实际恢复损失从最近已远端验证快照算起，还受当前迭代、保存、上传、校验和重试时间影响。",
+    "existing_cli_periodic_field": "checkpoint_interval",
+    "existing_cli_supports_wallclock_trigger": false,
+    "shared_policy_frozen_before_main_matrix": true,
+    "final_iteration_scope": "500 is the main-screening target in this plan; a later continuation forces a final snapshot at its actual resolved total_iterations target"
+  },
+  "checkpoint_identity_template": {
+    "logical_job_id": null,
+    "candidate_id": null,
+    "training_seed": null,
+    "attempt_id": null,
+    "checkpoint_id": null,
+    "generation_id": null,
+    "completed_iteration": null,
+    "next_iteration": null,
+    "completed_iteration_semantics": "number of fully completed outer iterations; 0 before the first iteration; loading 500 means next iteration 501",
+    "parent_checkpoint_manifest_sha256": null,
+    "parent_checkpoint_artifact_ref": null,
+    "execution_sha": null,
+    "effective_config_sha256": null,
+    "scientific_config_sha256": null,
+    "environment_lock_sha256": null,
+    "created_at_utc": null,
+    "resume_capability": "FULL_STATE_UNVERIFIED",
+    "resume_capability_verification_condition": "Promote to FULL_STATE_VERIFIED only when the declared full-state implementation/restore checks and this generation integrity evidence pass; final continuation entries also require the designated fresh-runtime 500-to-501 handoff test."
+  },
+  "required_state": {
+    "models": {
+      "required": [
+        "current_actor_state_dict",
+        "ema_actor_state_dict",
+        "central_critic_state_dict"
+      ],
+      "ema_updater_required": [
+        "beta",
+        "last_iteration",
+        "update_count",
+        "total_weight"
+      ],
+      "module_training_modes": "save or deterministically reconstruct and validate all modes affecting subsequent computation",
+      "main_matrix_parameter_dtype": "float32",
+      "evaluation_primary_export": "EMA policy compatible with the existing evaluator; store separately from the full training bundle"
+    },
+    "optimizers": {
+      "required": [
+        "complete_actor_multioptimizer_state",
+        "complete_critic_multioptimizer_state"
+      ],
+      "include": [
+        "all component optimizer names",
+        "parameter-group membership and order",
+        "Muon momentum",
+        "AdamW first and second moments",
+        "per-state step counters",
+        "learning rates and other group options",
+        "actual cumulative actor and critic optimizer-step counters"
+      ],
+      "missing_component_policy": "reject full-state restore; never silently initialize a missing optimizer",
+      "main_matrix_state_dtype": "preserve original dtypes, including FP32 floating master/momentum state"
+    },
+    "schedules": {
+      "required": [
+        "complete resolved training config",
+        "completed iteration",
+        "schedule implementation/execution SHA",
+        "actual current actor and critic learning rates",
+        "clip coefficient",
+        "regularization coefficient"
+      ],
+      "validation": "recompute the next iteration schedule from the saved resolved config and compare with uninterrupted execution",
+      "total_iterations_is_absolute_target": true,
+      "total_iterations_change_must_not_reset_current_iteration_or_schedules": true
+    },
+    "replay": {
+      "required": [
+        "layout/schema version",
+        "each field name, shape and dtype",
+        "capacity",
+        "valid size",
+        "ring write pointer",
+        "valid tensor contents",
+        "logical storage device"
+      ],
+      "logical_storage_device": "cpu",
+      "raw_default_bytes_per_trajectory": 487112,
+      "capture": "pause mutation and write bounded trajectory/field shards from the preallocated replay; no whole-buffer clone or deepcopy",
+      "stored_region": "store all valid ring slots with their exact positions; reconstruct unused allocated slots by the versioned allocation rule; when full, store all capacity slots",
+      "readback": "allocate CPU replay once, load bounded shards into correct slots, then validate size/pointer/layout/data",
+      "sample_validation": "restore the relevant RNG state, compare sampled indices and contents including ring wraparound",
+      "sample_rng_reference": "record the actual Torch CPU/CUDA or explicit generator used by the executed replay implementation",
+      "bounded_shard_storage_requirement": "A serialized shard must own only its bounded payload, or use a proven slice-aware format. torch.save of a view can persist its entire shared backing storage; a merely contiguous view is not proof of an independent bounded storage.",
+      "bounded_copy_policy": "A small bounded shard may be copied to independent storage and released after serialization; cloning/deepcopying the whole replay is forbidden.",
+      "loader_peak_memory_requirement": "Read one bounded shard at a time directly into the final preallocated CPU replay and release its temporary storage before the next shard; alternatively adopt compatible tensor storage without an extra complete replay allocation.",
+      "forbidden_loader": "Do not torch.load a complete replay-sized bundle and then copy it into a second preallocated replay. For A3, two raw full replay copies alone are 14.865478515625 GiB before all other state.",
+      "map_location_cpu_is_sufficient_for_ram_safety": false,
+      "train_state_archive_must_not_embed_a_duplicate_full_replay": true
+    },
+    "sampler": {
+      "required": [
+        "resolved SamplerConfig including actual env_seed, R, B, sampling temperature and cache dtype",
+        "all valid partial rollout_buffer tensors and per-environment lengths",
+        "commit_buffer contents/order/capacity and commit_buffer_size",
+        "parsed_envs_step fields",
+        "total_env_steps",
+        "total_game_steps",
+        "total_completed_games"
+      ],
+      "conditional_state": "preserve last_step_rewards/last_step_is_terminal or reconstruct and validate them if subsequent code reads them before overwrite",
+      "kv_cache_policy": "derived cache may be reconstructed at the validated complete-iteration boundary from saved partial histories using the current actor, as the audited collect path rebuilds it; verify this path in the fork test",
+      "must_preserve_unfinished_games_and_completed_unconsumed_leftovers": true,
+      "next_collect_validation": "same next delivered trajectory batch and ordering under the declared deterministic test conditions"
+    },
+    "native_environment": {
+      "primary_planned_method": "reset from the recorded initial environment seed and replay the exact full native action journal prefix",
+      "native_snapshot_is_currently_implemented": false,
+      "required": [
+        "actual reset seed",
+        "rollout batch size R",
+        "game constants and action layout",
+        "native source/build and ABI fingerprint",
+        "journal origin",
+        "complete ordered action prefix reference",
+        "boundary observations, legal actions, reward and terminal comparison evidence"
+      ],
+      "native_rng": "native mt19937 progress is reconstructed by the full action history and all automatic post-terminal resets; recording only unfinished games is insufficient",
+      "future_alternative": "versioned native snapshot/restore of real fields and RNG after separate equivalence validation; never raw-dump C++ pointers/vectors"
+    },
+    "rng": {
+      "required": [
+        "Python random state",
+        "NumPy global RNG state",
+        "all used independent NumPy generators and their identifiers",
+        "Torch CPU RNG state",
+        "all CUDA device RNG states",
+        "all explicitly created Torch generators and their identifiers"
+      ],
+      "restore_order": "restore after model/optimizer/buffer/environment construction, journal replay, cache preparation and RNG-consuming validation setup; no accidental random draws before the resumed next operation",
+      "validation_probes_must_restore_rng_after_probing": true,
+      "PYTHONHASHSEED_is_process_start_metadata_not_live_rng_state": true
+    },
+    "logical_counters": {
+      "required": [
+        "completed iteration",
+        "consumed complete training trajectories",
+        "actual native environment steps",
+        "valid player/game steps",
+        "native completed games",
+        "completed but unconsumed trajectories",
+        "actor optimizer steps",
+        "critic optimizer steps",
+        "EMA updates"
+      ],
+      "main_single_gpu_consumed_trajectory_invariant": "B * completed_iteration from initialization; exclude unfinished and unconsumed sampler trajectories",
+      "retries_are_not_independent_training_seeds": true,
+      "replayed_environment_actions_are_not_new_logical_training_trajectories": true
+    },
+    "provenance": {
+      "required": [
+        "full resolved configuration",
+        "scientific and full-config hashes",
+        "execution SHA plus source bundle reference",
+        "Python/Torch/CUDA/driver versions",
+        "native build fingerprint",
+        "precision/TF32 API and effective flags",
+        "effective CPU threads",
+        "determinism and backend settings",
+        "dependency lock reference",
+        "artifact inventory and parent lineage"
+      ]
+    }
+  },
+  "journal_prefix_contract": {
+    "status": "PROPOSED_NEW_FUNCTIONALITY",
+    "recording_boundary": "record the complete CPU action-token batch associated with every actual EnvBatch.step; snapshot commits only the prefix successfully applied through the safe boundary",
+    "payload_shape_per_native_call": "[R, 5]",
+    "planned_dtype": "int64 with recorded byte order",
+    "raw_action_payload_bytes_formula": "native_step_batch_count * R * 5 * 8, equivalently total_env_steps * 5 * 8 when total_env_steps counts individual environments advanced",
+    "origin": "the one recorded initial EnvBatch.reset(actual_env_seed) before any journal action",
+    "ordering": "monotonic native step-batch sequence numbers; no gaps, duplicates or reordering",
+    "immutable_shards": true,
+    "seal_active_shard_at_snapshot_boundary": true,
+    "prefix_manifest_required_fields": [
+      "origin reset seed and R",
+      "ordered shard artifact refs with byte sizes and SHA256",
+      "first and last native batch index for each shard",
+      "total applied native batch count",
+      "valid logical action bytes",
+      "exact final shard valid byte offset with declared encoding/header semantics",
+      "prefix boundary digest"
+    ],
+    "offset_semantics": "identify logical uncompressed action payload and physical file encoding separately; do not interpret a logical offset as an offset inside a compressed stream",
+    "replay": "reset the same native environment build; call the existing actions_from_np and envs.step in exact order without GPU policy inference until the recorded prefix ends",
+    "retain_all_referenced_prefix_shards": true,
+    "journal_compaction": "only after an independently validated native snapshot replaces the origin for every remaining dependent checkpoint",
+    "restoration_claim": "conditional on passing state and next-transition equivalence tests; same seed alone is not proof"
+  },
+  "artifact_reference_template": {
+    "artifact_id": null,
+    "artifact_role": null,
+    "local_relative_path": null,
+    "drive_file_id": null,
+    "drive_relative_path": null,
+    "byte_size": null,
+    "sha256": null,
+    "encoding": null,
+    "compression": null,
+    "logical_shape_or_record_range": null,
+    "referenced_by_checkpoint_ids": [],
+    "remote_verification": {
+      "method": null,
+      "checksum_algorithm": null,
+      "remote_checksum": null,
+      "matching_local_checksum": null,
+      "independent_download_sha256": null,
+      "verified_at_utc": null,
+      "passed": false
+    }
+  },
+  "required_artifact_roles": [
+    "train_state with models, optimizers, EMA, RNG, counters and provenance",
+    "replay layout manifest and all required replay tensor shards",
+    "sampler state and partial/commit trajectory shards",
+    "journal prefix manifest and every referenced immutable historical journal shard",
+    "complete resolved config and environment/dependency/source references",
+    "generation manifest with all file sizes and SHA256 values",
+    "COMPLETE.json written only after remote verification"
+  ],
+  "configuration_compatibility": {
+    "default": "reject differences outside the explicit operational whitelist; resolve the full saved config rather than reconstructing from current defaults",
+    "existing_training_config_whitelist": [
+      "total_iterations",
+      "run_name",
+      "logging_dir",
+      "resume_from",
+      "checkpoint_interval"
+    ],
+    "planned_runtime_metadata_whitelist": [
+      "attempt_id",
+      "runtime_assignment_id",
+      "local output paths",
+      "Drive generation/output paths",
+      "logging sinks",
+      "checkpoint wallclock trigger interval"
+    ],
+    "whitelist_conditions": [
+      "total_iterations is an absolute target greater than or equal to completed_iteration and does not change scientific schedule definitions",
+      "full-state resume requires both optimizers, replay, sampler and RNG restoration; resume_optimizer=false is rejected",
+      "record parent config hash, complete resolved child config hash and exact allowed changes",
+      "freeze scientific values, execution SHA, precision/backend, seeds and compatible software/native environment",
+      "changing B/R/M/S, optimizer, model, discount/lambda/clip/reg/LR schedule/EMA, precision or backend creates a declared new experiment branch",
+      "main 12-job comparisons use the same checkpoint/timing/logging policy; a later continuation may change allowed operations with explicit provenance"
+    ],
+    "full_config_hash_semantics": "hash the complete canonical resolved configuration; retain it even when allowed operational changes create a new full hash",
+    "scientific_config_hash_semantics": "hash canonical scientific/effective numeric fields after excluding only the declared operational whitelist; compare values as well as hashes",
+    "legacy_checkpoint_policy": "may be inspected as MODEL_OPTIMIZER_ONLY or an explicit WARM_START branch; missing historical state cannot be reconstructed after the fact"
+  },
+  "load_order": [
+    "Select a specific verified generation; check manifest, COMPLETE, all files and all referenced journal prefix shards.",
+    "Load serialized tensors initially with map_location=cpu; do not map the whole bundle to CUDA.",
+    "Resolve saved configuration, validate compatibility/whitelist and provenance, construct model/optimizer/replay/sampler objects in the locked environment.",
+    "Reset native environment with the actual saved origin seed and replay the complete journal prefix without GPU policy inference.",
+    "Restore current actor, EMA actor/updater and critic; place model and optimizer tensors onto their declared GPU devices while replay remains on CPU.",
+    "Restore replay ring, partial/commit sampler state, parsed environment result, logical counters and schedule inputs; prepare derived cache and non-mutating comparison evidence.",
+    "Restore all RNG states last; if probes consume RNG, restore the same saved state again.",
+    "Continue with next_iteration=completed_iteration+1 and the corresponding unchanged scientific schedule; record a new attempt with the exact parent generation."
+  ],
+  "drive_publish_protocol": {
+    "known_folder_id": "14wacgMnsJwnldEKydfQ5TFCUb5EOGTEO",
+    "mount_root_expected": "/content/drive/MyDrive/doudizhu",
+    "verify_mount_matches_known_folder": true,
+    "campaign_directory_pattern": "/content/drive/MyDrive/doudizhu/{plan_id}",
+    "attempt_directory_pattern": "/content/drive/MyDrive/doudizhu/{plan_id}/runs/{candidate_id}/s{training_seed}/{attempt_id}",
+    "generation_directory_pattern": "checkpoints/i{completed_iteration:06d}-g{generation_id}",
+    "generation_id_policy": "new unique identifier for each captured immutable generation; failed upload retries the same frozen generation",
+    "steps": [
+      "Pause mutation at the safe iteration boundary; synchronize outstanding CUDA work required for coherent tensor capture.",
+      "Write bounded independent-storage shards or a proven slice-aware format into a temporary generation; prevent torch.save(view) from serializing a whole shared replay storage. Seal the journal prefix, close handles and compute per-file byte counts/SHA256, then publish the immutable local generation.",
+      "Upload immutable files to this attempt dedicated new remote generation using verified resumable upload or the pretested Drive mount copy path.",
+      "Verify remote byte size and content using independent API server checksum with a locally computed checksum of the same algorithm, or independently download and recompute SHA256 if usable server evidence is unavailable.",
+      "Record the actual verification algorithm and evidence; a server MD5 result must not be labeled a server SHA256 verification. A reader verifies downloaded file SHA256 against the manifest.",
+      "Write COMPLETE.json last with exact artifact IDs/paths, sizes, hashes, config/execution identity, boundary iteration, journal prefix and remote verification evidence.",
+      "Optionally update the per-run latest_verified pointer; readers still validate the complete generation and all referenced files.",
+      "Retain previous verified generations until the new generation and its complete dependency set are verified; record upload failures as UPLOAD_PENDING."
+    ],
+    "same_mount_cache_readback_is_sufficient_remote_evidence": false,
+    "drive_rename_or_fsync_is_claimed_network_atomic_transaction": false,
+    "async_upload_input": "frozen local files only; never live mutating replay/model tensors",
+    "aggregate_ledger_writer": "single coordinator; each worker writes only its own attempt records",
+    "incomplete_generation_is_restorable_as_full_state": false,
+    "forced_colab_termination_has_guaranteed_save_callback": false
+  },
+  "readiness_and_acceptance": {
+    "status": "NOT_RUN",
+    "pre_training_gate_tests": [
+      {
+        "test_id": "replay_wraparound",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "filled and overwritten ring preserves size/pointer/fields",
+          "same restored RNG yields identical replay sample indices and data"
+        ]
+      },
+      {
+        "test_id": "native_journal_replay",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "multiple completed games and post-terminal resets",
+          "unfinished games and sub-action boundaries",
+          "same next observation, legal actions, reward and terminal result"
+        ]
+      },
+      {
+        "test_id": "sampler_leftovers",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "nonzero commit leftovers and partial rollouts are present in the test snapshot",
+          "first resumed collect matches delivered trajectory contents/order"
+        ]
+      },
+      {
+        "test_id": "short_training_fork",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "continuous N+K versus fresh-process restore at N then K",
+          "compare next schedule, logical counts, RNG, replay, sampler, optimizers, EMA and parameter updates",
+          "deterministic path comparisons exact where supported; fast-mode numerical tolerances and nondeterminism sources declared before seeing results"
+        ]
+      },
+      {
+        "test_id": "full_capacity_save_readback_fixture",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "bounded CPU serialization and load at every candidate capacity",
+          "no whole replay clone",
+          "memory/disk evidence covers full capture and load",
+          "repeated-data fixture is not throughput, compression or training evidence",
+          "a shard view does not cause serialization of its entire backing replay storage",
+          "peak memory passes during both capture and restore, including temporary shard copies",
+          "loading does not hold a full decoded replay in addition to its final preallocated storage"
+        ]
+      },
+      {
+        "test_id": "negative_restore",
+        "required": true,
+        "status": "NOT_RUN",
+        "assertions": [
+          "missing replay rejected",
+          "missing Critic optimizer rejected",
+          "missing required sampler/RNG/EMA state rejected",
+          "journal prefix truncated/corrupt/out-of-order rejected",
+          "wrong byte count/hash/schema/model shape rejected",
+          "scientific config mismatch rejected",
+          "incomplete remote generation rejected",
+          "no silent empty-replay fallback"
+        ]
+      }
+    ],
+    "real_data_filled_replay_gate": {
+      "required": true,
+      "minimum_completed_iterations_formula": "completed_iteration >= replay_buffer_scale S",
+      "require_replay_size_equals_capacity": true,
+      "require_real_data_snapshot_readback": true,
+      "smoke_of_2_to_5_iterations_is_not_steady_state_evidence": true,
+      "default_later_throughput_window": {
+        "first_iteration": 101,
+        "last_iteration": 500
+      },
+      "evidence_phase": "after real replay fills; a main run may provide this evidence, with further execution paused if its gate fails",
+      "if_separate_pretest": "use a separate pretest identity; exclude its trajectories and timings from the 12 main run results",
+      "gate_phase": "post_start",
+      "failure_action": "pause further training until the recorded failure is resolved and revalidated"
+    },
+    "handoff_gate": {
+      "test_id": "verified_drive_500_to_501_fresh_runtime",
+      "status": "NOT_RUN",
+      "applies_after_main_training": true,
+      "minimum_required_models": "A0 seed29 and the selected distinct candidate seed29; deduplicate if the selection is A0",
+      "required_steps": [
+        "download the declared complete 500 parent in a new runtime",
+        "verify every manifest and file including all journal prefixes",
+        "reconstruct the full state and actually execute training iteration 501",
+        "store validation logs, compared fields, hashes and an independent verification branch"
+      ],
+      "continuation_choice": "start official continuation from the verified 500 parent or explicitly from the 501 verification child; record the choice and never count it as another training seed"
+    },
+    "pre_training_gate_is_not_circularly_blocked_by_future_500_to_501_test": true,
+    "training_ready_may_be_true_only_after_pre_training_gates_and_resource_config_asset_gates_pass": true,
+    "handoff_complete_requires_post_training_500_to_501_gate": true,
+    "validation_evidence_artifact_refs": [],
+    "cross_version_bitwise_reproducibility_promised": false
+  },
+  "retention_policy": {
+    "active_run": "retain the latest two verified full generations when available and every journal prefix shard they reference; pending uploads never replace a verified parent",
+    "evaluation_exports": "retain all 12 runs complete configurations, source/environment fingerprints, metrics, 250/500 EMA policy exports, model/optimizer checkpoints and all raw evaluation results",
+    "before_selection": "prefer retaining every run final full 500 generation; pre-register a capacity-aware archival policy if storage does not fit",
+    "final_minimum_full_resume": "A0 seed29 and selected distinct candidate seed29 complete 500 generation plus journal prefixes and fresh-runtime 500-to-501 evidence",
+    "other_seed_full_replay_policy": "retain according to measured quota; preserve their weights/results and declare reduced resume_capability if large state is deliberately removed",
+    "deletion_gate": [
+      "publish retention_manifest",
+      "check dependency references across every retained generation",
+      "confirm A0 and selected continuation gates passed",
+      "do not remove the only recoverable parent",
+      "do not touch pre-existing doudizhu files outside this campaign"
+    ],
+    "resume_capability_values": [
+      "FULL_STATE_VERIFIED",
+      "FULL_STATE_UNVERIFIED",
+      "MODEL_OPTIMIZER_ONLY",
+      "POLICY_ONLY",
+      "UNAVAILABLE"
+    ],
+    "immutable_full_manifest_not_rewritten_to_hide_deleted_dependencies": true
+  },
+  "notes_zh": [
+    "500轮统计与运行资源采用计划中的12个逻辑job口径；动作journal重放、失败重做和恢复验证的成本另外记账。",
+    "CPU replay负载是张量静态量，不等于系统RSS、显存峰值、压缩包大小或实际传输量。",
+    "schema、日志、序列化、loader、远端验证与验收当前均为待实现要求；execution_sha和实际artifact refs必须由执行阶段填写。"
+  ]
+}

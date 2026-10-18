@@ -1,0 +1,241 @@
+{
+  "checked_date": "2026-10-18",
+  "audited_source_sha": "ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a",
+  "references": [
+    {
+      "type": "reference",
+      "id": "S1",
+      "title": "论文v1：§5.2、Appendix E/F.3/K",
+      "url": "https://arxiv.org/html/2605.19235v1"
+    },
+    {
+      "type": "reference",
+      "id": "S2",
+      "title": "指定上游仓库固定版本",
+      "url": "https://github.com/AtaraxosAI/doudizhu/tree/acdcf199cf422e2b683cb22142b8e7cb33b14460"
+    },
+    {
+      "type": "reference",
+      "id": "S3",
+      "title": "用户fork固定版本及README",
+      "url": "https://github.com/GentleKingson/doudizhu/tree/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a"
+    },
+    {
+      "type": "reference",
+      "id": "S4",
+      "title": "训练配置与默认值：marvel/config.py",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/config.py"
+    },
+    {
+      "type": "reference",
+      "id": "S5",
+      "title": "VRPO采集、bootstrap、Actor/Critic更新与checkpoint字段：L21–294",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/training/vrpo.py"
+    },
+    {
+      "type": "reference",
+      "id": "S6",
+      "title": "Sampler collect/leftovers/KV/action传回：L117–151、194–229、356–358",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/runtime/sampler.py"
+    },
+    {
+      "type": "reference",
+      "id": "S7",
+      "title": "调度公式及映射：L14–26、77–108",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/training/trainer.py"
+    },
+    {
+      "type": "reference",
+      "id": "S8",
+      "title": "归一化EMA与Muon/AdamW共用工具",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/optim/common.py"
+    },
+    {
+      "type": "reference",
+      "id": "S9",
+      "title": "轨迹字段/预分配/环形Replay与sample",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/buffer.py"
+    },
+    {
+      "type": "reference",
+      "id": "S10",
+      "title": "完整斗地主游戏常数：L102–109",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/nanopokerlib/cpp/games/doudizhu/doudizhu_struct.hpp"
+    },
+    {
+      "type": "reference",
+      "id": "S11",
+      "title": "线程覆盖与设备设置：L184–190",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/runtime/distributed.py"
+    },
+    {
+      "type": "reference",
+      "id": "S12",
+      "title": "历史Colab notebook目录（IPPO）",
+      "url": "https://github.com/GentleKingson/doudizhu/tree/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/notebooks"
+    },
+    {
+      "type": "reference",
+      "id": "S13",
+      "title": "NVIDIA L4产品规格",
+      "url": "https://www.nvidia.com/en-us/data-center/l4/"
+    },
+    {
+      "type": "reference",
+      "id": "S14",
+      "title": "NVIDIA Ada架构白皮书，Appendix D L4",
+      "url": "https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf"
+    },
+    {
+      "type": "reference",
+      "id": "S15",
+      "title": "Google Colab FAQ：动态资源/运行时间/Drive I/O",
+      "url": "https://research.google.com/colaboratory/faq.html"
+    },
+    {
+      "type": "reference",
+      "id": "S16",
+      "title": "checkpoint恢复/配置与周期",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/runtime/checkpoints.py"
+    },
+    {
+      "type": "reference",
+      "id": "S17",
+      "title": "PyTorch：随机数与复现边界",
+      "url": "https://docs.pytorch.org/docs/2.14/notes/randomness.html"
+    },
+    {
+      "type": "reference",
+      "id": "S18",
+      "title": "原生Env私有状态与RNG；配合core_state/core_step和bindings阅读",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/nanopokerlib/cpp/games/doudizhu/doudizhu_struct.hpp"
+    },
+    {
+      "type": "reference",
+      "id": "S19",
+      "title": "PyTorch AMP官方文档",
+      "url": "https://docs.pytorch.org/docs/2.14/amp.html"
+    },
+    {
+      "type": "reference",
+      "id": "S20",
+      "title": "评估CLI、自动牌集生成与双角色安排",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/evaluations/doudizhu/specs.py"
+    },
+    {
+      "type": "reference",
+      "id": "S21",
+      "title": "评估汇总、逐牌数组与配对",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/evaluations/doudizhu/summary.py"
+    },
+    {
+      "type": "reference",
+      "id": "S22",
+      "title": "评估ci_multiplier固定1.0：L25–34",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/evaluations/doudizhu/runtime/config.py"
+    },
+    {
+      "type": "reference",
+      "id": "S23",
+      "title": "SciPy bootstrap：paired重采样",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html"
+    },
+    {
+      "type": "reference",
+      "id": "S24",
+      "title": "Agarwal等：Deep RL at the Edge of the Statistical Precipice",
+      "url": "https://arxiv.org/abs/2108.13264"
+    },
+    {
+      "type": "reference",
+      "id": "S25",
+      "title": "Google Drive resumable upload",
+      "url": "https://developers.google.com/workspace/drive/api/guides/manage-uploads"
+    },
+    {
+      "type": "reference",
+      "id": "S26",
+      "title": "loss归约/优势标准化实现",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/training/losses.py"
+    },
+    {
+      "type": "reference",
+      "id": "S27",
+      "title": "PyTorch CUDA semantics：TF32、异步执行与计时",
+      "url": "https://docs.pytorch.org/docs/2.11/notes/cuda.html"
+    },
+    {
+      "type": "reference",
+      "id": "S28",
+      "title": "PyTorch compile与backward autocast上下文",
+      "url": "https://docs.pytorch.org/docs/2.11/user_guide/torch_compiler/torch.compiler_backward.html"
+    },
+    {
+      "type": "reference",
+      "id": "S29",
+      "title": "PyTorch保存与加载模型教程",
+      "url": "https://docs.pytorch.org/tutorials/beginner/saving_loading_models.html"
+    },
+    {
+      "type": "reference",
+      "id": "S30",
+      "title": "模型恢复配置校验：L301–349",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/model/base.py"
+    },
+    {
+      "type": "reference",
+      "id": "S31",
+      "title": "原生环境RNG初始化与洗牌：L48–67",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/nanopokerlib/cpp/games/doudizhu/core/doudizhu_core_state.hpp"
+    },
+    {
+      "type": "reference",
+      "id": "S32",
+      "title": "原生环境终局后初始化：L167–180",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/nanopokerlib/cpp/games/doudizhu/core/doudizhu_core_step.hpp"
+    },
+    {
+      "type": "reference",
+      "id": "S33",
+      "title": "保存/评估间隔语义",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/runtime/intervals.py"
+    },
+    {
+      "type": "reference",
+      "id": "S34",
+      "title": "内部评估hooks注册",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/eval/hooks.py"
+    },
+    {
+      "type": "reference",
+      "id": "S35",
+      "title": "规则host依赖",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/evaluations/doudizhu/runtime/game.py"
+    },
+    {
+      "type": "reference",
+      "id": "S36",
+      "title": "PyTorch torch.compile官方API",
+      "url": "https://docs.pytorch.org/docs/2.14/generated/torch.compile.html"
+    },
+    {
+      "type": "reference",
+      "id": "S37",
+      "title": "训练恢复workflow：cfg调用及设备映射，L25–82",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/marvel/training/workflow.py"
+    },
+    {
+      "type": "reference",
+      "id": "S38",
+      "title": "原生批环境reset和step顺序：L205–235",
+      "url": "https://github.com/GentleKingson/doudizhu/blob/ba7a7eb52112a17d1fb73f79c2cebb9555cb5e0a/nanopokerlib/cpp/core/types/env_batch.hpp"
+    },
+    {
+      "type": "reference",
+      "id": "S39",
+      "title": "PyTorch serialization：tensor view与底层storage保存",
+      "url": "https://docs.pytorch.org/docs/2.14/notes/serialization.html"
+    }
+  ],
+  "citation_scope_zh": "工程阈值、矩阵和恢复设计为本计划建议；源码静态核验不代表已运行Colab训练。"
+}

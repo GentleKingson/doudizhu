@@ -105,6 +105,7 @@ class Sampler:
         self.profile = False
         self.last_step_rewards: torch.Tensor | None = None
         self.last_step_is_terminal: torch.Tensor | None = None
+        self.action_journal = None
 
         self.agent_kv: KVCache | None = None
         self._reset_mask_full: torch.Tensor | None = None
@@ -357,7 +358,8 @@ class Sampler:
 
         with diagnostic_scope(self.profile, "sampler.actions_d2h"):
             action_tokens = self.parsed_envs_step["avail_tokens"][self._micro_buffer_range, action_taken]
-            actions = self.game.actions_from_np(action_tokens.detach().cpu().numpy())
+            action_array = action_tokens.detach().cpu().numpy()
+            actions = self.game.actions_from_np(action_array)
 
         self.parsed_envs_step.record_agent_outputs(
             avail_probs = avail_probs_used,
@@ -366,6 +368,8 @@ class Sampler:
 
         with diagnostic_scope(self.profile, "sampler.env_step"):
             envs_step = self.envs.step(actions)
+            if self.action_journal is not None:
+                self.action_journal.append(action_array)
 
         with diagnostic_scope(self.profile, "sampler.obs_h2d"):
             next_parsed_envs_step = EnvStepBatch.from_env_step(envs_step, self.config)

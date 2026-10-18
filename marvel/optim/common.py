@@ -90,6 +90,17 @@ class ExponentialMovingAverageUpdater:
         target_model = unwrap_distributed_module(self.merged_model)
         target_model.load_state_dict(source_model.state_dict(), strict = True)
 
+    def state_dict(self) -> dict[str, Any]:
+        return {key: getattr(self, key) for key in ("beta", "last_iteration", "update_count", "total_weight")}
+
+    def load_state_dict(self, state: Mapping[str, Any]) -> None:
+        if set(state) != set(self.state_dict()) or state["beta"] != self.beta:
+            raise ValueError("Incomplete or incompatible EMA state.")
+        if state["last_iteration"] != state["update_count"] or state["total_weight"] < 0:
+            raise ValueError("Invalid EMA counters.")
+        for key, value in state.items():
+            setattr(self, key, value)
+
     def step(self, *, iteration: int) -> None:
         value = int(iteration)
         if value <= 0:
