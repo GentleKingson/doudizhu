@@ -321,8 +321,11 @@ class VRPOTrainer(AlgorithmTrainer):
                         runtime.progress_bar_step()
                         stop_path = os.environ.get("MARVEL_STOP_AFTER_BOUNDARY")
                         stop_requested = bool(cfg.full_state_checkpoints and stop_path and Path(stop_path).is_file())
+                        training_seconds = time.monotonic()-iteration_started
+                        checkpoint_started = time.monotonic()
                         if runtime.checkpoint_due() or stop_requested:
                             runtime.save_checkpoint(state)
+                        checkpoint_seconds = time.monotonic()-checkpoint_started
                         if runtime.evaluation_due():
                             runtime.evaluate(agent_policy = agent_model_merged)
                         if cfg.full_state_checkpoints:
@@ -330,6 +333,8 @@ class VRPOTrainer(AlgorithmTrainer):
                                 torch.cuda.synchronize()
                             record = {
                                 "iteration": iteration, "iteration_wall_seconds_including_checkpoint_wait": time.monotonic()-iteration_started,
+                                "training_seconds": training_seconds,
+                                "checkpoint_and_verification_seconds": checkpoint_seconds,
                                 "consumed_trajectories": cfg.collect_batch_size*iteration,
                                 "native_env_steps": runtime.sampler.total_env_steps,
                                 "valid_game_steps": runtime.sampler.total_game_steps,
