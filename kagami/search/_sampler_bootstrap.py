@@ -129,8 +129,8 @@ def prefill_sampler_rollout_buffer_from_history_strs(
     history_rows = [str(item) for item in history_strs]
     pending = str(pending_action)
     parse_history_strs = getattr(game, "parse_history_strs", None)
-    if callable(parse_history_strs) and not pending:
-        history_batch = parse_history_strs(history_rows)
+    if callable(parse_history_strs):
+        history_batch = parse_history_strs(history_rows, [pending] * len(history_rows))
         rollout_prefix, num_steps_np, _player_ids_np, _is_commit_np, _avail_weights_np = history_batch_to_rollout(
             history_batch = history_batch,
             device = sampler.device,

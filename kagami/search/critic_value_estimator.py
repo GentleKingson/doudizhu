@@ -109,133 +109,18 @@ class CriticActionValueEstimator:
         seed: int,
     ) -> tuple[Any, np.ndarray]:
         parse_history_strs = getattr(self._game, "parse_history_strs", None)
-        if callable(parse_history_strs):
-            history_batch = parse_history_strs([str(row) for row in history_rows])
-            rollout, num_steps_np, _player_ids_np, _is_commit_np, _avail_weights_np = history_batch_to_rollout(
-                history_batch = history_batch,
-                device = self._device,
-                pad_token_id = int(self._game.PAD_TOKEN),
-                prefix_mode = "from_action_taken",
-            )
-            if str(pending_action):
-                self._overwrite_current_rollout_step_from_reconstructed_env(
-                    rollout = rollout,
-                    num_steps_np = num_steps_np,
-                    history_rows = history_rows,
-                    pending_action = str(pending_action),
-                    seed = int(seed),
-                )
-            return rollout, num_steps_np
-
-        infoset_str_from_history_strs = getattr(self._game, "infoset_str_from_history_strs", None)
-        parse_infoset_strs = getattr(self._game, "parse_infoset_strs", None)
-        if not callable(infoset_str_from_history_strs) or not callable(parse_infoset_strs):
-            raise RuntimeError(
-                "Critic action-value estimation requires game.parse_history_strs(...) or "
-                "game.infoset_str_from_history_strs(...) plus game.parse_infoset_strs(...)."
-            )
-
-        infoset_rows = [str(item) for item in infoset_str_from_history_strs([str(row) for row in history_rows])]
-        if len(infoset_rows) != len(history_rows):
-            raise RuntimeError("infoset_str_from_history_strs returned an unexpected row count for critic search.")
-        history_batch = parse_infoset_strs(infoset_rows, [str(pending_action)] * len(infoset_rows))
+        if not callable(parse_history_strs):
+            raise RuntimeError("Critic search requires full-history parsing; rebuild nanopokerlib with parse_history_strs.")
+        history_batch = parse_history_strs(
+            [str(row) for row in history_rows], [str(pending_action)] * len(history_rows),
+        )
         rollout, num_steps_np, _player_ids_np, _is_commit_np, _avail_weights_np = history_batch_to_rollout(
             history_batch = history_batch,
             device = self._device,
             pad_token_id = int(self._game.PAD_TOKEN),
-            prefix_mode = "ignore",
+            prefix_mode = "from_action_taken",
         )
         return rollout, num_steps_np
-
-    def _overwrite_current_rollout_step_from_reconstructed_env(
-        self,
-        *,
-        rollout: Any,
-        num_steps_np: np.ndarray,
-        history_rows: Sequence[str],
-        pending_action: str,
-        seed: int,
-    ) -> None:
-        reconstruct_envs = getattr(self._game, "reconstruct_envs", None)
-        if not callable(reconstruct_envs):
-            raise RuntimeError(
-                "Critic action-value estimation with a pending prefix requires game.reconstruct_envs(...)."
-            )
-
-        _envs, env_step = reconstruct_envs(
-            [str(row) for row in history_rows],
-            pending_actions = [str(pending_action)] * len(history_rows),
-            seed = int(seed),
-        )
-        batch_size = len(history_rows)
-        current_obs_tokens_np = np.asarray(env_step.observations.tokens, dtype = np.int64)
-        current_obs_channels_np = np.asarray(env_step.observations.channels, dtype = np.int64)
-        current_player_ids_np = np.asarray(env_step.player_ids, dtype = np.int64)
-        current_avail_tokens_np = np.asarray(env_step.available_actions.tokens, dtype = np.int64)
-        current_avail_weights_np = np.asarray(env_step.available_actions.weights, dtype = np.float32)
-
-        if tuple(current_obs_tokens_np.shape) != tuple(rollout["obs_tokens"].shape[0:1] + rollout["obs_tokens"].shape[2:]):
-            raise RuntimeError(
-                "reconstruct_envs returned obs_tokens incompatible with the parsed critic rollout: "
-                f"current={tuple(current_obs_tokens_np.shape)} rollout={tuple(rollout['obs_tokens'].shape)}."
-            )
-        if tuple(current_obs_channels_np.shape) != tuple(
-            rollout["obs_channels"].shape[0:1] + rollout["obs_channels"].shape[2:]
-        ):
-            raise RuntimeError(
-                "reconstruct_envs returned obs_channels incompatible with the parsed critic rollout: "
-                f"current={tuple(current_obs_channels_np.shape)} rollout={tuple(rollout['obs_channels'].shape)}."
-            )
-        if tuple(current_avail_tokens_np.shape) != tuple(
-            rollout["avail_tokens"].shape[0:1] + rollout["avail_tokens"].shape[2:]
-        ):
-            raise RuntimeError(
-                "reconstruct_envs returned available-action tokens incompatible with the parsed critic rollout: "
-                f"current={tuple(current_avail_tokens_np.shape)} rollout={tuple(rollout['avail_tokens'].shape)}."
-            )
-        if tuple(current_avail_weights_np.shape) != tuple(
-            rollout["avail_weights"].shape[0:1] + rollout["avail_weights"].shape[2:]
-        ):
-            raise RuntimeError(
-                "reconstruct_envs returned available-action weights incompatible with the parsed critic rollout: "
-                f"current={tuple(current_avail_weights_np.shape)} rollout={tuple(rollout['avail_weights'].shape)}."
-            )
-        if tuple(current_player_ids_np.shape) != (batch_size,):
-            raise RuntimeError(
-                "reconstruct_envs returned invalid player_ids shape for critic search: "
-                f"expected={(batch_size,)}, got={tuple(current_player_ids_np.shape)}."
-            )
-
-        row_idx_t = torch.arange(batch_size, dtype = torch.long, device = self._device)
-        last_steps_t = torch.as_tensor(np.asarray(num_steps_np, dtype = np.int64) - 1, dtype = torch.long, device = self._device)
-        if bool(torch.any(last_steps_t < 0).item()):
-            raise RuntimeError("Critic rollout num_steps must be positive before pending-prefix overwrite.")
-
-        rollout["obs_tokens"][row_idx_t, last_steps_t] = torch.as_tensor(
-            current_obs_tokens_np,
-            dtype = torch.long,
-            device = self._device,
-        )
-        rollout["obs_channels"][row_idx_t, last_steps_t] = torch.as_tensor(
-            current_obs_channels_np,
-            dtype = rollout["obs_channels"].dtype,
-            device = self._device,
-        )
-        rollout["player_ids"][row_idx_t, last_steps_t] = torch.as_tensor(
-            current_player_ids_np,
-            dtype = torch.long,
-            device = self._device,
-        )
-        rollout["avail_tokens"][row_idx_t, last_steps_t] = torch.as_tensor(
-            current_avail_tokens_np,
-            dtype = torch.long,
-            device = self._device,
-        )
-        rollout["avail_weights"][row_idx_t, last_steps_t] = torch.as_tensor(
-            current_avail_weights_np,
-            dtype = rollout["avail_weights"].dtype,
-            device = self._device,
-        )
 
     def _evaluate_critic_qvalues(self, *, rollout: Any, batch_size: int) -> np.ndarray:
         with torch.inference_mode():

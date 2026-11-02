@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cstdint>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -55,6 +56,9 @@ struct DouDiZhuGame<Config>::Endpoint : DouDiZhuGame<Config> {
     static HistoryBatch<Game>
     parse_infoset_strs(const std::vector<std::string>& infoset_strs, const std::vector<std::string>& pending_actions);
 
+    static HistoryBatch<Game>
+    parse_history_strs(const std::vector<std::string>& history_strs, const std::vector<std::string>& pending_actions = {});
+
     static BeliefStepResult expand_belief_prefix_str(const std::string& infoset_str, const std::string& belief_str = "");
     static BeliefStepBatchResult
     expand_belief_prefix_strs(const std::vector<std::string>& infoset_strs, const std::vector<std::string>& belief_strs = {});
@@ -78,6 +82,11 @@ struct DouDiZhuGame<Config>::Endpoint : DouDiZhuGame<Config> {
     static std::string opening_root_history_str(const Game& state);
 
 private:
+    static std::pair<Game, StepResult<Game>> replay_history(
+        const std::string& history_str, const std::string& pending_action, int seed,
+        std::optional<History<Game>>* history
+    );
+
     struct InfosetEncodeComponents {
         std::array<HandCounts, Game::NUM_PLAYERS> initial_hands{};
         HandCounts landlord_public_cards{};

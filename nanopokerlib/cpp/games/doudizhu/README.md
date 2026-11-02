@@ -193,6 +193,8 @@ rank are set to `1` (e.g., 3 copies of `Q` sets `Q#0,Q#1,Q#2`).
 
 - `parse_infoset_str(infoset_str: str, pending_action: str = "") -> History`
 - `parse_infoset_strs(infoset_strs: list[str], pending_actions: list[str]) -> HistoryBatch`
+- `parse_history_strs(history_strs: list[str], pending_actions: list[str] = []) -> HistoryBatch`
+  replays complete sampled histories with all players' observations and pending-prefix steps for critic input.
 - `expand_belief_prefix_str(infoset_str: str, belief_str: str = "") -> dict`
 - `expand_belief_prefix_strs(infoset_strs: list[str], belief_strs: list[str] = []) -> dict`
 - `reconstruct_env(history_str: str, pending_action: str = "", seed: int = 0) -> tuple[Environment, StepResult]`

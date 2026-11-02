@@ -105,7 +105,61 @@ std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<C
     const std::string& pending_action,
     int seed
 ) {
+    return replay_history(history_str, pending_action, seed, nullptr);
+}
+
+template<typename Config>
+HistoryBatch<DouDiZhuGame<Config>> DouDiZhuGame<Config>::Endpoint::parse_history_strs(
+    const std::vector<std::string>& history_strs, const std::vector<std::string>& pending_actions
+) {
+    if (!pending_actions.empty() && pending_actions.size() != history_strs.size()) {
+        throw std::runtime_error("pending_actions must match the number of history_strs.");
+    }
+    std::vector<History<Game>> histories;
+    histories.reserve(history_strs.size());
+    for (size_t i = 0; i < history_strs.size(); ++i) {
+        std::optional<History<Game>> history;
+        replay_history(history_strs[i], pending_actions.empty() ? "" : pending_actions[i], 0, &history);
+        histories.push_back(std::move(*history));
+    }
+    return HistoryBatch<Game>(std::move(histories));
+}
+
+template<typename Config>
+std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<Config>::Endpoint::replay_history(
+    const std::string& history_str,
+    const std::string& pending_action,
+    int seed,
+    std::optional<History<Game>>* history
+) {
     using Game = DouDiZhuGame<Config>;
+    std::vector<StepResult<Game>> steps;
+    std::vector<std::vector<int>> action_taken_tokens;
+    auto record_initial = [&](const Endpoint& state) {
+        if (history == nullptr) return;
+        Observation<Game> obs;
+        for (auto& row : obs.tokens) row = {Game::Token::INIT_TOKEN};
+        obs.channels = state.build_channels();
+        steps.push_back(StepResult<Game>{{}, false, obs, state.player_, {ActionProto<Game>{{}, 1.f, false}}});
+    };
+    auto apply_and_record = [&](Endpoint& state, const std::vector<int>& tokens) {
+        auto step = state.step(Action<Game>{tokens});
+        if (history != nullptr) {
+            steps.push_back(step);
+            action_taken_tokens.push_back(tokens);
+        }
+        return step;
+    };
+    auto finish = [&](const Endpoint& state, const StepResult<Game>& last_step) {
+        if (history != nullptr) {
+            action_taken_tokens.push_back({});
+            *history = History<Game>::from_inference_steps(
+                std::move(steps), std::move(action_taken_tokens),
+                available_action_strings(state, last_step.available_actions)
+            );
+        }
+        return std::make_pair(Game(state), last_step);
+    };
 
     // Empty history_str: fresh game with random deal from seed.
     if (history_str.empty()) {
@@ -115,17 +169,17 @@ std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<C
         state.live_history_tracker_.reset();
         state.init({0.f, 0.f, 0.f});
         state.live_history_tracker_.record("");
+        record_initial(state);
 
         StepResult<Game> last_step{};
         const int num_deal_steps = Game::BASE_HAND_CARDS + Game::NUM_PUBLIC_LANDLORD_CARDS;
         for (int t = 0; t < num_deal_steps; ++t) {
-            last_step = state.step(Action<Game>{{}});
+            last_step = apply_and_record(state, {});
         }
         // Transition from dealing to normal playing phase.
-        last_step = state.step(Action<Game>{{}});
+        last_step = apply_and_record(state, {});
 
-        Game out_state = state;
-        return {out_state, last_step};
+        return finish(state, last_step);
     }
 
     const std::vector<std::string> segments = semantic_string::split_segments(history_str);
@@ -266,14 +320,15 @@ std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<C
     Endpoint state;
     state.rng_.seed(static_cast<std::mt19937::result_type>(seed));
     seed_state_with_hands(state, replay_input, initial_hands);
+    record_initial(state);
 
     StepResult<Game> last_step{};
     const int num_deal_steps = Game::BASE_HAND_CARDS + Game::NUM_PUBLIC_LANDLORD_CARDS;
     for (int t = 0; t < num_deal_steps; ++t) {
-        last_step = state.step(Action<Game>{{}});
+        last_step = apply_and_record(state, {});
     }
     // Transition from dealing to normal playing phase.
-    last_step = state.step(Action<Game>{{}});
+    last_step = apply_and_record(state, {});
 
     for (size_t act_idx = 0; act_idx < replay_input.actions.size(); ++act_idx) {
         const auto& act = replay_input.actions[act_idx];
@@ -287,7 +342,7 @@ std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<C
         const Sequence seq_copy = *seq_match;
         for (size_t step_idx = 0; step_idx < seq_copy.steps.size(); ++step_idx) {
             try {
-                last_step = state.step(Action<Game>{seq_copy.steps[step_idx].tokens});
+                last_step = apply_and_record(state, seq_copy.steps[step_idx].tokens);
             } catch (const std::exception& e) {
                 std::ostringstream oss;
                 oss << "reconstruct_env replay failed at action " << act_idx << " step " << step_idx << ": " << e.what();
@@ -298,11 +353,10 @@ std::pair<DouDiZhuGame<Config>, StepResult<DouDiZhuGame<Config>>> DouDiZhuGame<C
 
     std::vector<std::vector<int>> pending_tokens = resolve_pending_actions(state, pending_action);
     for (const auto& tokens : pending_tokens) {
-        last_step = state.step(Action<Game>{tokens});
+        last_step = apply_and_record(state, tokens);
     }
 
-    Game out_state = state;
-    return {out_state, last_step};
+    return finish(state, last_step);
 }
 
 template<typename Config>

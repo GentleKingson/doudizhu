@@ -663,6 +663,30 @@ def test_prefill_rollout_buffer_decodes_infosets_with_pending_action(monkeypatch
     assert captured_pending_actions == ["3+", "3+"]
 
 
+@pytest.mark.parametrize("pending", ["", "888?", "KKK."])
+def test_prefill_preserves_full_history_with_pending_action(pending: str) -> None:
+    game = npl.doudizhu
+    history = "L+33567888TTJQKKKA2|P1+4556677789TTKA22B|P2+3344456999JJJQQA2|L+QAR"
+    expected, num_steps, *_ = sampler_bootstrap.history_batch_to_rollout(
+        history_batch = game.parse_history_strs([history], [pending]),
+        device = torch.device("cpu"), pad_token_id = int(game.PAD_TOKEN),
+        prefix_mode = "from_action_taken",
+    )
+    buffer = {key: torch.zeros_like(expected[key]) for key in (
+        "player_ids", "obs_tokens", "obs_channels", "avail_tokens", "avail_weights",
+    )}
+    buffer["num_steps"] = torch.zeros(1, dtype = torch.long)
+    buffer["avail_is_commit"] = torch.zeros_like(expected["avail_weights"], dtype = torch.bool)
+    sampler = SimpleNamespace(device = torch.device("cpu"), rollout_buffer = buffer)
+    sampler_bootstrap.prefill_sampler_rollout_buffer_from_history_strs(
+        game = game, sampler = sampler, history_strs = [history], pending_action = pending,
+    )
+    prefix_length = int(num_steps[0]) - 1
+    assert int(buffer["num_steps"][0]) == prefix_length
+    for key in ("obs_tokens", "obs_channels"):
+        torch.testing.assert_close(buffer[key][:, :prefix_length], expected[key][:, :prefix_length])
+
+
 def test_validate_prefilled_rollout_timeline_rejects_non_terminal_at_horizon() -> None:
     sampler = SimpleNamespace(
         parsed_envs_step = SimpleNamespace(batch_size = torch.Size([2])),

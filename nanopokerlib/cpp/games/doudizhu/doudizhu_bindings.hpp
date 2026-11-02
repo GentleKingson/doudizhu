@@ -274,6 +274,12 @@ inline void init_doudizhu_bindings(py::module_& m_doudizhu, const char* docstrin
         "Returns tuple[Environment, StepResult]."
     );
     m_doudizhu.def(
+        "parse_history_strs",
+        &Game::Endpoint::parse_history_strs,
+        py::arg("history_strs"), py::arg("pending_actions") = std::vector<std::string>(),
+        "Replay complete sampled histories, including pending actions, preserving all players' observations."
+    );
+    m_doudizhu.def(
         "reconstruct_envs",
         &EndpointFactory<Game>::reconstruct_envs,
         py::arg("history_strs"),
