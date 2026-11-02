@@ -354,3 +354,33 @@ def test_local_subgame_requires_qvalue_critic_without_test_factory() -> None:
             search_budget = 8,
             search_floor = 4,
         )
+
+
+def test_partial_expansion_preserves_equal_particle_action_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kagami.search.local_subgame import PolicyAnchoredPcfrSolver, _SampledSubgameBuilder
+
+    class ParticleValues:
+        def estimate_action_value_vectors(self, *, history_rows, **kwargs):  # noqa: ANN001, ANN003
+            del kwargs
+            value = np.mean([2.0 if row == "high" else 0.0 for row in history_rows])
+            return {action: np.asarray([value, -value]) for action in ("A", "B")}
+
+    builder = _SampledSubgameBuilder(
+        game = _FakeGame(), policy_query_service = _FakePolicyQueryService(),
+        value_estimator = ParticleValues(), root_player_id = 0, max_query_depth = 2, seed = 0,
+    )
+    choices = iter([0, 1])
+    monkeypatch.setattr(builder, "_sample_action_index", lambda **kwargs: next(choices))
+
+    def step_history(*, history_str, **kwargs):  # noqa: ANN001, ANN003
+        del kwargs
+        value = 2.0 if history_str == "high" else 0.0
+        return history_str, True, np.asarray([value, -value]), -2
+
+    monkeypatch.setattr(builder, "_step_history", step_history)
+    tree = builder.build(infoset_str = "root", pending_action = "", belief_samples = [
+        SimpleNamespace(history_str = "high"), SimpleNamespace(history_str = "low"),
+    ])
+    actions = PolicyAnchoredPcfrSolver(search_beta = 1.0, search_temp = 1.0).solve(tree = tree, iterations = 16)
+    # Both actions have the same [2, 0] particle values, regardless of which particle was expanded.
+    assert {action.action_str: action.prob for action in actions} == pytest.approx({"A": 0.5, "B": 0.5})

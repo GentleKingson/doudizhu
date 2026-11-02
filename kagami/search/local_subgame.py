@@ -50,6 +50,7 @@ class _SubgameActionEdge:
     prior: float
     token_row: tuple[int, ...]
     sampled_count: int = 0
+    expanded_sample_indices: list[int] = field(default_factory = list)
     leaf_value: np.ndarray | None = None
     terminal_values: list[np.ndarray] = field(default_factory = list)
     child_counts: dict[_SubgameKey, int] = field(default_factory = dict)
@@ -482,6 +483,7 @@ class _SampledSubgameBuilder:
     ) -> None:
         node = self._ensure_node(tree = tree, infoset_str = infoset_str, pending_action = pending_action)
         node.sample_histories.append(str(history_str))
+        sample_index = node.sample_count - 1
         if int(remaining_depth) <= 0 or int(node.player_id) < 0:
             return
         if not node.actions:
@@ -494,6 +496,7 @@ class _SampledSubgameBuilder:
         if not bool(edge.is_commit):
             child_key = _SubgameKey(infoset_str = str(infoset_str), pending_action = str(edge.action_str))
             edge.child_counts[child_key] = edge.child_counts.get(child_key, 0) + 1
+            edge.expanded_sample_indices.append(sample_index)
             self._expand_history(
                 tree = tree,
                 history_str = str(history_str),
@@ -515,6 +518,7 @@ class _SampledSubgameBuilder:
         next_history, terminal, rewards, next_player_id = step_result
         if bool(terminal):
             edge.terminal_values.append(np.asarray(rewards, dtype = np.float64))
+            edge.expanded_sample_indices.append(sample_index)
             tree.record_value_width(np.asarray(rewards, dtype = np.float64))
             return
         if int(next_player_id) < 0:
@@ -525,6 +529,7 @@ class _SampledSubgameBuilder:
         child_infoset = str(infoset_from_history(str(next_history)))
         child_key = _SubgameKey(infoset_str = child_infoset, pending_action = "")
         edge.child_counts[child_key] = edge.child_counts.get(child_key, 0) + 1
+        edge.expanded_sample_indices.append(sample_index)
         self._expand_history(
             tree = tree,
             history_str = str(next_history),
@@ -621,20 +626,25 @@ class _SampledSubgameBuilder:
         for node in tree.nodes.values():
             if not node.sample_histories:
                 continue
-            values = self._value_estimator.estimate_action_value_vectors(
-                history_rows = node.sample_histories,
-                infoset_str = str(node.key.infoset_str),
-                root_player_id = int(self._root_player_id),
-                pending_action = str(node.key.pending_action),
-                pending_eval = node.pending_eval,
-                seed = UpdateEquivalentSearchEngine.mix_seed(
-                    self._seed,
-                    str(node.key.infoset_str),
-                    str(node.key.pending_action),
-                    "leaf",
-                ),
-            )
+            value_cache: dict[tuple[int, ...], dict[str, np.ndarray]] = {}
             for edge in node.actions:
+                expanded = set(edge.expanded_sample_indices)
+                remaining = tuple(index for index in range(node.sample_count) if index not in expanded)
+                if not remaining:
+                    continue
+                # Expanded particles already contribute through child or terminal values.
+                if remaining not in value_cache:
+                    value_cache[remaining] = self._value_estimator.estimate_action_value_vectors(
+                        history_rows = [node.sample_histories[index] for index in remaining],
+                        infoset_str = str(node.key.infoset_str),
+                        root_player_id = int(self._root_player_id),
+                        pending_action = str(node.key.pending_action),
+                        pending_eval = node.pending_eval,
+                        seed = UpdateEquivalentSearchEngine.mix_seed(
+                            self._seed, str(node.key.infoset_str), str(node.key.pending_action), "leaf",
+                        ),
+                    )
+                values = value_cache[remaining]
                 value = np.asarray(values[str(edge.action_str)], dtype = np.float64)
                 edge.leaf_value = value
                 tree.record_value_width(value)
